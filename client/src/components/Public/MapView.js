@@ -45,6 +45,7 @@ const MapView = ({ refreshTrigger }) => {
   const [searchedLocation, setSearchedLocation] = useState(null);
   const [mapCenter, setMapCenter] = useState(DEFAULT_CENTER);
   const [mapZoom, setMapZoom] = useState(DEFAULT_ZOOM);
+  const [mapType, setMapType] = useState('standard'); // 'standard' or 'satellite'
 
   useEffect(() => {
     fetchMapData();
@@ -250,10 +251,17 @@ const MapView = ({ refreshTrigger }) => {
               maxZoom={18}
             >
               <MapUpdater center={mapCenter} zoom={mapZoom} />
-              <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              />
+              {mapType === 'satellite' ? (
+                <TileLayer
+                  attribution='&copy; <a href="https://www.esri.com/">Esri</a> &copy; <a href="https://www.mapbox.com/">Mapbox</a>'
+                  url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                />
+              ) : (
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+              )}
               
               {/* Searched Location Marker */}
               {searchedLocation && (
