@@ -1572,7 +1572,7 @@ if (process.env.NODE_ENV === 'production') {
   
   // The "catchall" handler: for any request that doesn't match an API route,
   // send back React's index.html file.
-  app.get('*', (req, res) => {
+  app.get('*', (req, res, next) => {
     // Don't serve React app for API routes
     if (req.path.startsWith('/api/')) {
       return res.status(404).json({ error: `Route not found: ${req.method} ${req.path}` });
@@ -1580,17 +1580,39 @@ if (process.env.NODE_ENV === 'production') {
     
     // Send index.html for all other routes (React Router will handle routing)
     if (fs.existsSync(indexPath)) {
-      res.sendFile(indexPath);
+      res.sendFile(path.resolve(indexPath));
     } else {
       console.error(`ERROR: index.html not found at ${indexPath}`);
+      console.error('Attempting to rebuild...');
+      
+      // Try to rebuild if index.html is missing
+      const { execSync } = require('child_process');
+      try {
+        const clientPath = path.join(__dirname, '../client');
+        process.chdir(clientPath);
+        execSync('CI=false npm run build', { 
+          stdio: 'pipe',
+          env: { ...process.env, CI: 'false' }
+        });
+        
+        // Check again
+        if (fs.existsSync(indexPath)) {
+          return res.sendFile(path.resolve(indexPath));
+        }
+      } catch (buildError) {
+        console.error('Rebuild failed:', buildError.message);
+      }
+      
       res.status(500).send(`
         <html>
           <head><title>Build Error</title></head>
-          <body>
+          <body style="font-family: Arial, sans-serif; padding: 20px;">
             <h1>React app not built</h1>
-            <p>Please run "npm run build" first.</p>
-            <p>Build path: ${buildPath}</p>
-            <p>Index path: ${indexPath}</p>
+            <p>The React app build is missing. Please check the server logs.</p>
+            <p><strong>Build path:</strong> ${buildPath}</p>
+            <p><strong>Index path:</strong> ${indexPath}</p>
+            <p><strong>Build exists:</strong> ${fs.existsSync(buildPath)}</p>
+            <p><strong>Index exists:</strong> ${fs.existsSync(indexPath)}</p>
           </body>
         </html>
       `);

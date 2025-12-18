@@ -122,7 +122,9 @@ function buildReactApp() {
 
 // ALWAYS build the React app (don't check if it exists first)
 // This ensures the build is always fresh and in the right location
-console.log('Building React app...');
+console.log('========================================');
+console.log('Starting build process...');
+console.log('========================================');
 const buildSuccess = buildReactApp();
 
 if (!buildSuccess) {
@@ -130,6 +132,7 @@ if (!buildSuccess) {
   console.error('FATAL: Could not build React app');
   console.error('Server cannot start without a built React app');
   console.error('========================================');
+  console.error('The server will exit now. Please check the build logs above.');
   process.exit(1);
 }
 
