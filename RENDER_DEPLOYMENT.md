@@ -146,6 +146,35 @@ If you see "exited with status 1 while building", check the build logs in Render
 - Verify `NODE_ENV=production` is set
 - Check server logs in Render dashboard
 
+### "Not Found" Error on Website
+
+If you see "Not Found" when visiting your deployed site:
+
+1. **Check Build Logs**: Verify that `npm run build` completed successfully
+   - Look for "Compiled successfully" in the build logs
+   - Check that `client/build` directory was created
+
+2. **Verify Build Command**: Make sure your build command is:
+   ```
+   npm run render-build
+   ```
+   This installs all dependencies and builds the React app.
+
+3. **Check Server Logs**: Look for these messages:
+   - `Serving React app from: /opt/render/project/src/client/build`
+   - If you see "Build directory not found", the build didn't complete
+
+4. **Verify Environment Variable**: Ensure `NODE_ENV=production` is set in Render
+
+5. **Check File Paths**: The server looks for files at:
+   - `client/build/index.html`
+   - `client/build/static/` (for CSS/JS)
+
+6. **Manual Build Test**: If build fails, try this build command:
+   ```
+   npm install && cd server && npm install && cd ../client && npm install && cd ../client && CI=false npm run build
+   ```
+
 ### Database Issues
 - SQLite database will be created automatically
 - Database file is stored in the server directory
