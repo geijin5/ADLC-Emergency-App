@@ -13,14 +13,15 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 });
 
-// Deer Lodge County, Montana center coordinates
+// Anaconda-Deer Lodge County, Montana center coordinates
 const DEFAULT_CENTER = [46.1286, -112.9422];
-const DEFAULT_ZOOM = 11;
+const DEFAULT_ZOOM = 10; // Reduced zoom to show more of the county
 
-// Deer Lodge County approximate bounds (southwest, northeast)
+// Anaconda-Deer Lodge County approximate bounds (southwest, northeast)
+// Expanded bounds to show the entire county
 const DEER_LODGE_COUNTY_BOUNDS = [
-  [45.8, -113.2], // Southwest corner
-  [46.5, -112.6]  // Northeast corner
+  [45.7, -113.3], // Southwest corner (expanded)
+  [46.6, -112.5]  // Northeast corner (expanded)
 ];
 
 // Major highways and routes in Deer Lodge County with mile markers
