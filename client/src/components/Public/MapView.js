@@ -18,10 +18,24 @@ const DEFAULT_CENTER = [46.1286, -112.9422];
 const DEFAULT_ZOOM = 10; // Reduced zoom to show more of the county
 
 // Anaconda-Deer Lodge County approximate bounds (southwest, northeast)
-// Expanded bounds to show the entire county
+// Bounds set to show only Anaconda-Deer Lodge County
 const DEER_LODGE_COUNTY_BOUNDS = [
-  [45.7, -113.3], // Southwest corner (expanded)
-  [46.6, -112.5]  // Northeast corner (expanded)
+  [45.7, -113.3], // Southwest corner
+  [46.6, -112.5]  // Northeast corner
+];
+
+// Anaconda-Deer Lodge County boundary polygon (approximate)
+// Coordinates outlining the county boundaries
+const COUNTY_BOUNDARY = [
+  [45.7, -113.3],  // Southwest corner
+  [46.0, -113.3],  // West edge
+  [46.3, -113.1],  // Northwest
+  [46.6, -112.8],  // North edge
+  [46.6, -112.5],  // Northeast corner
+  [46.3, -112.5],  // East edge
+  [46.0, -112.7],  // Southeast
+  [45.7, -112.9],  // South edge
+  [45.7, -113.3]   // Close the polygon
 ];
 
 
@@ -300,6 +314,30 @@ const MapView = ({ refreshTrigger }) => {
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
               )}
+              
+              {/* County Boundary Highlight */}
+              <Polygon
+                positions={COUNTY_BOUNDARY}
+                pathOptions={{
+                  color: '#fbbf24',
+                  fillColor: '#fbbf24',
+                  fillOpacity: 0.1,
+                  weight: 3,
+                  opacity: 0.8,
+                  dashArray: '10, 5'
+                }}
+              >
+                <Popup>
+                  <div>
+                    <h3 style={{ margin: '0 0 10px 0', color: '#fbbf24' }}>
+                      🗺️ Anaconda-Deer Lodge County
+                    </h3>
+                    <p style={{ margin: '5px 0', color: '#d1d5db' }}>
+                      County Boundary
+                    </p>
+                  </div>
+                </Popup>
+              </Polygon>
               
               {/* Searched Location Marker */}
               {searchedLocation && (
