@@ -65,14 +65,3 @@
   height: fit-content;
 }
 
-/* Mile marker styling */
-.mile-marker-icon {
-  background: transparent !important;
-  border: none !important;
-}
-
-.mile-marker-icon:hover {
-  transform: scale(1.1);
-  transition: transform 0.2s ease;
-}
-

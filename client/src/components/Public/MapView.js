@@ -24,82 +24,6 @@ const DEER_LODGE_COUNTY_BOUNDS = [
   [46.6, -112.5]  // Northeast corner (expanded)
 ];
 
-// Major highways and routes in Deer Lodge County with mile markers
-// Format: { name, route, markers: [{lat, lng, mile}] }
-const MILE_MARKERS = [
-  {
-    name: 'I-90',
-    route: 'Interstate 90',
-    markers: [
-      { lat: 46.1274, lng: -112.9480, mile: 194 },
-      { lat: 46.1300, lng: -112.9400, mile: 195 },
-      { lat: 46.1320, lng: -112.9300, mile: 196 },
-      { lat: 46.1340, lng: -112.9200, mile: 197 },
-      { lat: 46.1360, lng: -112.9100, mile: 198 },
-    ]
-  },
-  {
-    name: 'MT-1',
-    route: 'Montana Highway 1',
-    markers: [
-      { lat: 46.1286, lng: -112.9422, mile: 0 },
-      { lat: 46.1350, lng: -112.9350, mile: 1 },
-      { lat: 46.1410, lng: -112.9280, mile: 2 },
-      { lat: 46.1470, lng: -112.9210, mile: 3 },
-      { lat: 46.1200, lng: -112.9500, mile: -1 },
-      { lat: 46.1120, lng: -112.9580, mile: -2 },
-    ]
-  },
-  {
-    name: 'MT-48',
-    route: 'Montana Highway 48',
-    markers: [
-      { lat: 46.1400, lng: -112.9000, mile: 10 },
-      { lat: 46.1450, lng: -112.8900, mile: 11 },
-      { lat: 46.1500, lng: -112.8800, mile: 12 },
-      { lat: 46.1350, lng: -112.9100, mile: 9 },
-      { lat: 46.1300, lng: -112.9200, mile: 8 },
-    ]
-  },
-  {
-    name: 'US-10A',
-    route: 'US Highway 10 Alternate',
-    markers: [
-      { lat: 46.1250, lng: -112.9550, mile: 5 },
-      { lat: 46.1300, lng: -112.9600, mile: 6 },
-      { lat: 46.1350, lng: -112.9650, mile: 7 },
-      { lat: 46.1200, lng: -112.9500, mile: 4 },
-      { lat: 46.1150, lng: -112.9450, mile: 3 },
-    ]
-  }
-];
-
-// Create a custom icon for mile markers
-const createMileMarkerIcon = (mile) => {
-  return L.divIcon({
-    className: 'mile-marker-icon',
-    html: `
-      <div style="
-        background: #1e40af;
-        color: white;
-        border: 2px solid white;
-        border-radius: 50%;
-        width: 32px;
-        height: 32px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 11px;
-        font-weight: bold;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        cursor: pointer;
-      ">${mile}</div>
-    `,
-    iconSize: [32, 32],
-    iconAnchor: [16, 16],
-    popupAnchor: [0, -16]
-  });
-};
 
 // Component to update map view when location changes
 function MapUpdater({ center, zoom }) {
@@ -312,9 +236,6 @@ const MapView = ({ refreshTrigger }) => {
             <p style={{ margin: 0, color: '#d1d5db' }}>
               <strong style={{ color: '#f9fafb' }}>🚫 Closed Roads:</strong> {closedRoads.length} active
             </p>
-            <p style={{ margin: 0, color: '#d1d5db' }}>
-              <strong style={{ color: '#f9fafb' }}>🛣️ Mile Markers:</strong> {MILE_MARKERS.reduce((sum, h) => sum + h.markers.length, 0)} shown
-            </p>
           </div>
           <div className="map-wrapper">
             <MapContainer
@@ -324,7 +245,7 @@ const MapView = ({ refreshTrigger }) => {
               scrollWheelZoom={true}
               key={`${mapCenter[0]}-${mapCenter[1]}-${mapZoom}`}
               maxBounds={DEER_LODGE_COUNTY_BOUNDS}
-              maxBoundsViscosity={0.5}
+              maxBoundsViscosity={1.0}
               minZoom={9}
               maxZoom={18}
             >
@@ -508,31 +429,6 @@ const MapView = ({ refreshTrigger }) => {
                   </Popup>
                 </Circle>
               ))}
-
-              {/* Mile Markers */}
-              {MILE_MARKERS.map((highway, highwayIndex) =>
-                highway.markers.map((marker, markerIndex) => (
-                  <Marker
-                    key={`mile-marker-${highwayIndex}-${markerIndex}`}
-                    position={[marker.lat, marker.lng]}
-                    icon={createMileMarkerIcon(marker.mile)}
-                  >
-                    <Popup>
-                      <div>
-                        <h3 style={{ margin: '0 0 10px 0', color: '#1e40af' }}>
-                          🛣️ {highway.route}
-                        </h3>
-                        <p style={{ margin: '5px 0', fontWeight: '600', color: '#f9fafb', fontSize: '18px' }}>
-                          Mile Marker {marker.mile}
-                        </p>
-                        <p style={{ margin: '5px 0', fontSize: '12px', color: '#d1d5db' }}>
-                          Coordinates: {marker.lat.toFixed(6)}, {marker.lng.toFixed(6)}
-                        </p>
-                      </div>
-                    </Popup>
-                  </Marker>
-                ))
-              )}
             </MapContainer>
           </div>
           {(closedAreas.length === 0 && paradeRoutes.length === 0 && detours.length === 0 && closedRoads.length === 0 && !searchedLocation) && (
