@@ -63,6 +63,23 @@ if (!fs.existsSync(staticPath)) {
   console.log('✓ static directory found');
 }
 
+// List build directory contents
+try {
+  const files = fs.readdirSync(buildPath);
+  console.log('Build directory contents:');
+  files.forEach(file => {
+    const filePath = path.join(buildPath, file);
+    const stats = fs.statSync(filePath);
+    if (stats.isDirectory()) {
+      console.log('  📁', file, '/');
+    } else {
+      console.log('  📄', file, `(${stats.size} bytes)`);
+    }
+  });
+} catch (e) {
+  console.warn('Could not list build directory:', e.message);
+}
+
 console.log('========================================');
 console.log('✓ Build verification passed!');
 console.log('========================================');
