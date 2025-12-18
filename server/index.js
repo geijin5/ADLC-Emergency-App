@@ -1630,6 +1630,23 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
+// Diagnostic endpoint to check build status
+app.get('/api/debug/build-status', (req, res) => {
+  const buildPath = path.join(__dirname, '../client/build');
+  const indexPath = path.join(buildPath, 'index.html');
+  
+  res.json({
+    buildPath,
+    indexPath,
+    buildExists: fs.existsSync(buildPath),
+    indexExists: fs.existsSync(indexPath),
+    currentDir: process.cwd(),
+    __dirname: __dirname,
+    nodeEnv: process.env.NODE_ENV,
+    buildContents: fs.existsSync(buildPath) ? fs.readdirSync(buildPath) : []
+  });
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
@@ -1637,6 +1654,12 @@ app.listen(PORT, () => {
     const buildPath = path.join(__dirname, '../client/build');
     if (fs.existsSync(buildPath)) {
       console.log(`Serving React app from: ${buildPath}`);
+      try {
+        const files = fs.readdirSync(buildPath);
+        console.log(`Build directory contains ${files.length} items`);
+      } catch (e) {
+        console.error('Could not read build directory:', e.message);
+      }
     } else {
       console.error(`WARNING: Build directory not found at ${buildPath}`);
       console.error('The React app may not be built. Run "npm run build" first.');
@@ -1645,5 +1668,6 @@ app.listen(PORT, () => {
   console.log('Available routes:');
   console.log('  POST /api/personnel/closed-areas');
   console.log('  GET /api/personnel/closed-areas');
+  console.log('  GET /api/debug/build-status (diagnostic)');
 });
 
