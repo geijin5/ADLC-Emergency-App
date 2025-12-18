@@ -11,7 +11,8 @@
     "build": "cd client && npm run build",
     "start": "cd server && node start-production.js",
     "postinstall": "cd server && npm install && cd ../client && npm install",
-    "heroku-postbuild": "npm run build"
+    "heroku-postbuild": "npm run build",
+    "render-build": "npm install && cd server && npm install && cd ../client && npm install && cd ../client && npm run build"
   },
   "keywords": ["emergency", "services", "public-safety"],
   "author": "",

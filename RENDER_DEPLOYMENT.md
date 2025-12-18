@@ -19,7 +19,12 @@ If Render is trying to use Docker and you see an error about missing Dockerfile,
    - **Root Directory**: (leave empty - root of repo)
    - **Build Command**: 
      ```
-     npm run install-all && npm run build
+     npm run render-build
+     ```
+     
+     Or alternatively:
+     ```
+     npm install && cd server && npm install && cd ../client && npm install && cd ../client && npm run build
      ```
    - **Start Command**: 
      ```
@@ -63,9 +68,31 @@ If you prefer Docker, we can create a Dockerfile, but Node.js native deployment 
 
 ## Troubleshooting
 
-### Build Fails
-- Check that all dependencies are in package.json files
-- Verify Node version (should be 18+ or 20+)
+### Build Fails (Status 1)
+
+If you see "exited with status 1 while building", check the build logs in Render dashboard for specific errors. Common issues:
+
+1. **Node Version Mismatch**:
+   - Check `.nvmrc` file specifies Node 20
+   - In Render settings, ensure Node version is set to 20.x
+   - Or add `"engines": { "node": ">=20.0.0" }` to root `package.json`
+
+2. **Missing Dependencies**:
+   - Verify all `package.json` files have correct dependencies
+   - Check that `npm install` completes successfully for root, server, and client
+
+3. **Build Memory Issues**:
+   - React builds can be memory-intensive
+   - Try: `NODE_OPTIONS=--max_old_space_size=4096 npm run build` in build command
+
+4. **Syntax Errors**:
+   - Check for JavaScript/React syntax errors in client code
+   - Look for missing imports or undefined variables
+
+5. **Alternative Build Command** (if default fails):
+   ```
+   npm install && (cd server && npm install) && (cd client && npm install) && (cd client && npm run build)
+   ```
 
 ### Start Command Fails
 - Check that `server/start-production.js` exists
