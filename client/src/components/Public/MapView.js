@@ -150,18 +150,56 @@ const MapView = ({ refreshTrigger }) => {
     <div className="map-container">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
         <h2 style={{ margin: 0, color: '#f9fafb' }}>Interactive Map - Routes, Detours & Closed Areas</h2>
-        <button
-          onClick={fetchMapData}
-          className="btn btn-secondary"
-          style={{ 
-            padding: '8px 16px',
-            fontSize: '14px',
-            whiteSpace: 'nowrap'
-          }}
-          title="Refresh map data"
-        >
-          🔄 Refresh Map
-        </button>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#1f2937', padding: '6px 12px', borderRadius: '6px', border: '1px solid #374151' }}>
+            <span style={{ color: '#d1d5db', fontSize: '14px' }}>🗺️ Standard</span>
+            <label style={{ position: 'relative', display: 'inline-block', width: '44px', height: '24px', margin: 0, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={mapType === 'satellite'}
+                onChange={(e) => setMapType(e.target.checked ? 'satellite' : 'standard')}
+                style={{ opacity: 0, width: 0, height: 0 }}
+              />
+              <span style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: mapType === 'satellite' ? '#3b82f6' : '#6b7280',
+                borderRadius: '24px',
+                transition: 'background-color 0.3s',
+                cursor: 'pointer'
+              }}>
+                <span style={{
+                  position: 'absolute',
+                  content: '""',
+                  height: '18px',
+                  width: '18px',
+                  left: '3px',
+                  bottom: '3px',
+                  backgroundColor: 'white',
+                  borderRadius: '50%',
+                  transition: 'transform 0.3s',
+                  transform: mapType === 'satellite' ? 'translateX(20px)' : 'translateX(0)'
+                }} />
+              </span>
+            </label>
+            <span style={{ color: '#d1d5db', fontSize: '14px' }}>🛰️ Satellite</span>
+          </div>
+          <button
+            onClick={fetchMapData}
+            className="btn btn-secondary"
+            style={{ 
+              padding: '8px 16px',
+              fontSize: '14px',
+              whiteSpace: 'nowrap'
+            }}
+            title="Refresh map data"
+          >
+            🔄 Refresh Map
+          </button>
+        </div>
       </div>
       
       {/* Location Search */}
@@ -244,7 +282,7 @@ const MapView = ({ refreshTrigger }) => {
               zoom={mapZoom}
               style={{ height: '500px', width: '100%', borderRadius: '8px' }}
               scrollWheelZoom={true}
-              key={`${mapCenter[0]}-${mapCenter[1]}-${mapZoom}`}
+              key={`${mapCenter[0]}-${mapCenter[1]}-${mapZoom}-${mapType}`}
               maxBounds={DEER_LODGE_COUNTY_BOUNDS}
               maxBoundsViscosity={1.0}
               minZoom={9}
