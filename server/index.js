@@ -1529,8 +1529,86 @@ if (process.env.NODE_ENV === 'production') {
   const buildPath = path.join(__dirname, '../client/build');
   const indexPath = path.join(buildPath, 'index.html');
   
-  // Check if build directory exists - if not, build it now
-  if (!fs.existsSync(buildPath) || !fs.existsSync(indexPath)) {
+  // Build flag to track if build is in progress
+  let isBuilding = false;
+  let buildComplete = fs.existsSync(buildPath) && fs.existsSync(indexPath);
+  
+  // Function to build React app asynchronously
+  function buildReactAppAsync() {
+    if (isBuilding || buildComplete) return;
+    isBuilding = true;
+    
+    console.log('========================================');
+    console.log('Build directory not found. Building React app in background...');
+    console.log('========================================');
+    
+    // Run build asynchronously so server can start
+    setImmediate(() => {
+      try {
+        const clientPath = path.join(__dirname, '../client');
+        const originalCwd = process.cwd();
+        
+        console.log('Changing to client directory:', clientPath);
+        if (!fs.existsSync(clientPath)) {
+          throw new Error(`Client directory not found at ${clientPath}`);
+        }
+        process.chdir(clientPath);
+        console.log('Current directory after change:', process.cwd());
+        
+        console.log('Installing client dependencies...');
+        execSync('npm install --production=false', { 
+          stdio: 'inherit',
+          cwd: clientPath
+        });
+        console.log('✓ Dependencies installed');
+        
+        console.log('Building React app (this may take 2-5 minutes)...');
+        console.log('Please wait, this is a one-time build...');
+        execSync('CI=false npm run build', { 
+          stdio: 'inherit',
+          cwd: clientPath,
+          env: { ...process.env, CI: 'false', NODE_ENV: 'production' },
+          maxBuffer: 10 * 1024 * 1024
+        });
+        
+        process.chdir(originalCwd);
+        
+        // Verify build was created
+        const absoluteBuildPath = path.resolve(buildPath);
+        const absoluteIndexPath = path.resolve(indexPath);
+        
+        console.log('Verifying build...');
+        if (fs.existsSync(absoluteBuildPath) && fs.existsSync(absoluteIndexPath)) {
+          console.log('========================================');
+          console.log('✓ Build completed successfully!');
+          console.log('✓ Build directory:', absoluteBuildPath);
+          console.log('✓ index.html found');
+          console.log('========================================');
+          buildComplete = true;
+        } else {
+          throw new Error('Build completed but verification failed');
+        }
+      } catch (error) {
+        console.error('========================================');
+        console.error('ERROR: Failed to build React app');
+        console.error('========================================');
+        console.error('Error message:', error.message);
+        if (error.stdout) console.error('stdout:', error.stdout.toString().slice(0, 500));
+        if (error.stderr) console.error('stderr:', error.stderr.toString().slice(0, 500));
+        console.error('========================================');
+      } finally {
+        isBuilding = false;
+      }
+    });
+  }
+  
+  // Check if build exists, if not start building
+  if (!buildComplete) {
+    buildReactAppAsync();
+  }
+  
+  // Always set up static file serving (even if build is in progress)
+  if (fs.existsSync(buildPath)) {
     console.log('========================================');
     console.log('Build directory not found. Building React app now...');
     console.log('========================================');
