@@ -244,7 +244,7 @@ const MapView = ({ refreshTrigger }) => {
         <form onSubmit={searchLocation} style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
               <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
             <label htmlFor="location-search" style={{ marginBottom: '5px', display: 'block', color: '#f9fafb' }}>
-              Search for a Location in Deer Lodge County
+              Search for a Location in Anaconda-Deer Lodge County
             </label>
             <input
               id="location-search"
