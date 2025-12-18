@@ -4,6 +4,7 @@ const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const path = require('path');
+const fs = require('fs');
 const webpush = require('web-push');
 require('dotenv').config();
 
@@ -1525,6 +1526,16 @@ app.post('/api/personnel/push/send', authenticateToken, (req, res) => {
 if (process.env.NODE_ENV === 'production') {
   // Serve static files from the React app build directory
   const buildPath = path.join(__dirname, '../client/build');
+  
+  // Check if build directory exists
+  if (!fs.existsSync(buildPath)) {
+    console.error(`ERROR: Build directory not found at ${buildPath}`);
+    console.error('Make sure to run "npm run build" before starting the server');
+  } else {
+    console.log(`Serving static files from: ${buildPath}`);
+  }
+  
+  // Serve static files from the React app build directory
   app.use(express.static(buildPath));
   
   // Serve static assets (CSS, JS, images) from the build directory
@@ -1537,8 +1548,15 @@ if (process.env.NODE_ENV === 'production') {
     if (req.path.startsWith('/api/')) {
       return res.status(404).json({ error: `Route not found: ${req.method} ${req.path}` });
     }
+    
     // Send index.html for all other routes (React Router will handle routing)
-    res.sendFile(path.join(buildPath, 'index.html'));
+    const indexPath = path.join(buildPath, 'index.html');
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      console.error(`ERROR: index.html not found at ${indexPath}`);
+      res.status(500).send('React app not built. Please run "npm run build" first.');
+    }
   });
 } else {
   // 404 handler for debugging (development only)
@@ -1556,7 +1574,13 @@ app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   if (process.env.NODE_ENV === 'production') {
-    console.log('Serving React app from client/build');
+    const buildPath = path.join(__dirname, '../client/build');
+    if (fs.existsSync(buildPath)) {
+      console.log(`Serving React app from: ${buildPath}`);
+    } else {
+      console.error(`WARNING: Build directory not found at ${buildPath}`);
+      console.error('The React app may not be built. Run "npm run build" first.');
+    }
   }
   console.log('Available routes:');
   console.log('  POST /api/personnel/closed-areas');
