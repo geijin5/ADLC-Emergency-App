@@ -19,6 +19,9 @@ server/.env
 client/build/
 client/dist/
 
+# Build verification (keep in repo)
+!verify-build.js
+
 # Logs
 npm-debug.log*
 yarn-debug.log*
