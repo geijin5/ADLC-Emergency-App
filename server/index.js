@@ -1523,8 +1523,12 @@ app.post('/api/personnel/push/send', authenticateToken, (req, res) => {
 
 // Serve static files from React app in production
 if (process.env.NODE_ENV === 'production') {
-  // Serve static files from the React app
-  app.use(express.static(path.join(__dirname, '../client/build')));
+  // Serve static files from the React app build directory
+  const buildPath = path.join(__dirname, '../client/build');
+  app.use(express.static(buildPath));
+  
+  // Serve static assets (CSS, JS, images) from the build directory
+  app.use('/static', express.static(path.join(buildPath, 'static')));
   
   // The "catchall" handler: for any request that doesn't match an API route,
   // send back React's index.html file.
@@ -1533,7 +1537,8 @@ if (process.env.NODE_ENV === 'production') {
     if (req.path.startsWith('/api/')) {
       return res.status(404).json({ error: `Route not found: ${req.method} ${req.path}` });
     }
-    res.sendFile(path.join(__dirname, '../client/build/index.html'));
+    // Send index.html for all other routes (React Router will handle routing)
+    res.sendFile(path.join(buildPath, 'index.html'));
   });
 } else {
   // 404 handler for debugging (development only)

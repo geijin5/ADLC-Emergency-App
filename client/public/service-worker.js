@@ -2,10 +2,9 @@
 const CACHE_NAME = 'adlc-emergency-v1';
 const urlsToCache = [
   '/',
-  '/static/css/main.css',
-  '/static/js/main.js',
   '/logo.png',
-  '/manifest.json'
+  '/manifest.json',
+  '/service-worker.js'
 ];
 
 console.log('Service Worker: Script loaded');
@@ -15,8 +14,13 @@ self.addEventListener('install', function(event) {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(function(cache) {
-        console.log('Service Worker: Caching files');
-        return cache.addAll(urlsToCache);
+        console.log('Service Worker: Caching essential files');
+        // Only cache essential files, let the app handle dynamic assets
+        return cache.addAll(urlsToCache).catch(err => {
+          console.log('Service Worker: Some files failed to cache', err);
+          // Continue even if some files fail
+          return Promise.resolve();
+        });
       })
       .then(() => self.skipWaiting()) // Activate immediately
   );
@@ -40,11 +44,36 @@ self.addEventListener('activate', function(event) {
 
 // Fetch event for offline support
 self.addEventListener('fetch', function(event) {
+  // Skip caching for API requests
+  if (event.request.url.includes('/api/')) {
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request)
       .then(function(response) {
-        // Return cached version or fetch from network
-        return response || fetch(event.request);
+        // Return cached version if available
+        if (response) {
+          return response;
+        }
+        // Otherwise fetch from network
+        return fetch(event.request).then(function(response) {
+          // Don't cache if not a valid response
+          if (!response || response.status !== 200 || response.type !== 'basic') {
+            return response;
+          }
+          // Clone the response
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then(function(cache) {
+            cache.put(event.request, responseToCache);
+          });
+          return response;
+        }).catch(function() {
+          // If fetch fails and it's a navigation request, return the index page
+          if (event.request.mode === 'navigate') {
+            return caches.match('/');
+          }
+        });
       })
   );
 });

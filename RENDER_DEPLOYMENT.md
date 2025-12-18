@@ -2,9 +2,9 @@
 
 ## Issue: Docker Detection
 
-If Render is trying to use Docker and you see an error about missing Dockerfile, follow these steps:
+If Render is trying to use Docker and you see an error about missing Dockerfile, **DO NOT use render.yaml**. Instead, configure the service manually as described below.
 
-## Solution 1: Manual Service Configuration (Recommended)
+## Manual Service Configuration (REQUIRED - No render.yaml)
 
 1. **Go to Render Dashboard** → Create New → **Web Service**
 
@@ -37,7 +37,18 @@ If Render is trying to use Docker and you see an error about missing Dockerfile,
 
 ## Solution 2: Delete render.yaml (if causing issues)
 
-If Render keeps trying to use Docker, you can temporarily remove or rename `render.yaml` and configure manually as above.
+If Render keeps trying to use Docker despite having `render.yaml` with `env: node`, follow these steps:
+
+1. **Delete or rename `render.yaml`** from your repository:
+   ```bash
+   git rm render.yaml
+   git commit -m "Remove render.yaml to prevent Docker detection"
+   git push origin main
+   ```
+
+2. **Then use Solution 1** (Manual Service Configuration) above.
+
+3. **Alternative**: If you want to keep `render.yaml`, make sure it has `env: node` explicitly set (which it does), but Render sometimes ignores this. In that case, manual configuration is more reliable.
 
 ## Solution 3: Create a Dockerfile (Alternative)
 
@@ -72,4 +83,5 @@ If you prefer Docker, we can create a Dockerfile, but Node.js native deployment 
 2. Test the public side first
 3. Login with admin credentials
 4. Verify push notifications work (may need HTTPS)
+
 
