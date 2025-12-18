@@ -1529,21 +1529,44 @@ if (process.env.NODE_ENV === 'production') {
   const buildPath = path.join(__dirname, '../client/build');
   const indexPath = path.join(buildPath, 'index.html');
   
-  // Check if build directory exists
-  if (!fs.existsSync(buildPath)) {
-    console.error(`ERROR: Build directory not found at ${buildPath}`);
-    console.error('Make sure to run "npm run build" before starting the server');
-    console.error('Current working directory:', process.cwd());
-    console.error('__dirname:', __dirname);
-    console.error('Attempting to list parent directory:', path.join(__dirname, '..'));
+  // Check if build directory exists - if not, build it now
+  if (!fs.existsSync(buildPath) || !fs.existsSync(indexPath)) {
+    console.log('========================================');
+    console.log('Build directory not found. Building React app now...');
+    console.log('========================================');
+    
     try {
-      const parentDir = path.join(__dirname, '..');
-      if (fs.existsSync(parentDir)) {
-        const files = fs.readdirSync(parentDir);
-        console.error('Files in parent directory:', files);
+      const clientPath = path.join(__dirname, '../client');
+      const originalCwd = process.cwd();
+      
+      console.log('Changing to client directory:', clientPath);
+      process.chdir(clientPath);
+      
+      console.log('Installing client dependencies...');
+      execSync('npm install --production=false', { 
+        stdio: 'inherit',
+        cwd: clientPath
+      });
+      
+      console.log('Building React app (this may take 2-5 minutes)...');
+      execSync('CI=false npm run build', { 
+        stdio: 'inherit',
+        cwd: clientPath,
+        env: { ...process.env, CI: 'false', NODE_ENV: 'production' },
+        maxBuffer: 10 * 1024 * 1024
+      });
+      
+      process.chdir(originalCwd);
+      
+      // Verify build was created
+      if (fs.existsSync(buildPath) && fs.existsSync(indexPath)) {
+        console.log('✓ Build completed successfully!');
+      } else {
+        console.error('WARNING: Build completed but verification failed');
       }
-    } catch (e) {
-      console.error('Error reading parent directory:', e.message);
+    } catch (error) {
+      console.error('ERROR: Failed to build React app:', error.message);
+      console.error('Server will continue but React app may not work correctly.');
     }
   } else {
     console.log(`Serving static files from: ${buildPath}`);
