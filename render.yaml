@@ -5,7 +5,7 @@ services:
     env: node
     region: oregon
     plan: free
-    buildCommand: npm run render-build
+    buildCommand: npm run render-build || (echo "Build failed, checking logs..." && exit 1)
     startCommand: npm start
     healthCheckPath: /
     dockerfilePath: ""

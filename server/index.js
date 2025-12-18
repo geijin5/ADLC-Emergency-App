@@ -1526,13 +1526,21 @@ app.post('/api/personnel/push/send', authenticateToken, (req, res) => {
 if (process.env.NODE_ENV === 'production') {
   // Serve static files from the React app build directory
   const buildPath = path.join(__dirname, '../client/build');
+  const indexPath = path.join(buildPath, 'index.html');
   
   // Check if build directory exists
   if (!fs.existsSync(buildPath)) {
     console.error(`ERROR: Build directory not found at ${buildPath}`);
     console.error('Make sure to run "npm run build" before starting the server');
+    console.error('Current working directory:', process.cwd());
+    console.error('__dirname:', __dirname);
   } else {
     console.log(`Serving static files from: ${buildPath}`);
+    if (fs.existsSync(indexPath)) {
+      console.log('✓ index.html found');
+    } else {
+      console.error(`ERROR: index.html not found at ${indexPath}`);
+    }
   }
   
   // Serve static files from the React app build directory
@@ -1540,6 +1548,11 @@ if (process.env.NODE_ENV === 'production') {
   
   // Serve static assets (CSS, JS, images) from the build directory
   app.use('/static', express.static(path.join(buildPath, 'static')));
+  
+  // Serve service worker and manifest
+  app.use('/service-worker.js', express.static(path.join(__dirname, '../client/public/service-worker.js')));
+  app.use('/manifest.json', express.static(path.join(__dirname, '../client/public/manifest.json')));
+  app.use('/logo.png', express.static(path.join(__dirname, '../client/public/logo.png')));
   
   // The "catchall" handler: for any request that doesn't match an API route,
   // send back React's index.html file.
@@ -1550,12 +1563,21 @@ if (process.env.NODE_ENV === 'production') {
     }
     
     // Send index.html for all other routes (React Router will handle routing)
-    const indexPath = path.join(buildPath, 'index.html');
     if (fs.existsSync(indexPath)) {
       res.sendFile(indexPath);
     } else {
       console.error(`ERROR: index.html not found at ${indexPath}`);
-      res.status(500).send('React app not built. Please run "npm run build" first.');
+      res.status(500).send(`
+        <html>
+          <head><title>Build Error</title></head>
+          <body>
+            <h1>React app not built</h1>
+            <p>Please run "npm run build" first.</p>
+            <p>Build path: ${buildPath}</p>
+            <p>Index path: ${indexPath}</p>
+          </body>
+        </html>
+      `);
     }
   });
 } else {
