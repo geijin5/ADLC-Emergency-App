@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, Circle, Popup, Marker, useMap, Polyline } from 'react-leaflet';
+import { MapContainer, TileLayer, Circle, Popup, Marker, useMap, Polyline, Polygon } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { getClosedAreas, getParadeRoutes, getDetours, getClosedRoads } from '../../api/api';
