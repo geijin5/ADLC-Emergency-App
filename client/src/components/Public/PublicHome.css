@@ -1,0 +1,19 @@
+.info-section {
+  margin-top: 50px;
+}
+
+.info-section h2 {
+  margin-bottom: 20px;
+  color: #f9fafb;
+}
+
+.info-section ul {
+  list-style-position: inside;
+  line-height: 1.8;
+  color: #d1d5db;
+}
+
+.info-section li {
+  margin-bottom: 8px;
+}
+

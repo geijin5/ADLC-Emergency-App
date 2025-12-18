@@ -1,0 +1,5 @@
+emergency.db
+emergency.db-journal
+.env
+*.log
+

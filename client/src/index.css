@@ -1,0 +1,143 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #111827;
+  color: #f9fafb;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+.btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.btn-primary {
+  background-color: #dc2626;
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: #b91c1c;
+}
+
+.btn-secondary {
+  background-color: #6b7280;
+  color: white;
+}
+
+.btn-secondary:hover {
+  background-color: #4b5563;
+}
+
+.btn-success {
+  background-color: #10b981;
+  color: white;
+}
+
+.btn-success:hover {
+  background-color: #059669;
+}
+
+.input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #374151;
+  border-radius: 5px;
+  font-size: 16px;
+  margin-bottom: 15px;
+  background-color: #1f2937;
+  color: #f9fafb;
+}
+
+.input:focus {
+  outline: none;
+  border-color: #dc2626;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.2);
+}
+
+.input::placeholder {
+  color: #9ca3af;
+}
+
+.card {
+  background: #1f2937;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  margin-bottom: 20px;
+  border: 1px solid #374151;
+  color: #f9fafb;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.alert {
+  padding: 15px;
+  border-radius: 5px;
+  margin-bottom: 20px;
+}
+
+.alert-info {
+  background-color: #1e3a8a;
+  border-left: 4px solid #3b82f6;
+  color: #dbeafe;
+}
+
+.alert-warning {
+  background-color: #78350f;
+  border-left: 4px solid #f59e0b;
+  color: #fef3c7;
+}
+
+.alert-danger {
+  background-color: #7f1d1d;
+  border-left: 4px solid #ef4444;
+  color: #fee2e2;
+}
+
+.badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.badge-pending {
+  background-color: #78350f;
+  color: #fef3c7;
+}
+
+.badge-in-progress {
+  background-color: #1e3a8a;
+  color: #dbeafe;
+}
+
+.badge-resolved {
+  background-color: #065f46;
+  color: #d1fae5;
+}
+
