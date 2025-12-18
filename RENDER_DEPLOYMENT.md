@@ -2,15 +2,35 @@
 
 ## Issue: Docker Detection
 
-If Render is trying to use Docker and you see an error about missing Dockerfile, **DO NOT use render.yaml**. Instead, configure the service manually as described below.
+If Render is trying to use Docker and you see an error about missing Dockerfile, follow these steps:
 
-## Manual Service Configuration (REQUIRED - No render.yaml)
+## Solution 1: Use render.yaml (Try This First)
+
+The repository now includes a `render.yaml` file that explicitly sets `env: node`. 
+
+1. **Go to Render Dashboard** → Create New → **Blueprint** (not Web Service)
+2. **Connect your GitHub repository**: `geijin5/ADLC-Emergency-App`
+3. **Render will automatically detect and use `render.yaml`**
+4. **Set Environment Variables** in the Render dashboard:
+   - `NODE_ENV` = `production`
+   - `JWT_SECRET` = (your strong secret key)
+   - `VAPID_PUBLIC_KEY` = (your VAPID public key - optional)
+   - `VAPID_PRIVATE_KEY` = (your VAPID private key - optional)
+5. **Click "Apply"**
+
+## Solution 2: Manual Service Configuration (If Blueprint Fails)
+
+If the Blueprint method still tries to use Docker, configure manually:
 
 1. **Go to Render Dashboard** → Create New → **Web Service**
 
 2. **Connect your GitHub repository**: `geijin5/ADLC-Emergency-App`
 
-3. **Configure the service manually** (don't use render.yaml if it's causing issues):
+3. **IMPORTANT**: Before clicking "Create", make sure:
+   - **Environment** is set to **"Node"** (NOT "Docker")
+   - If you see "Docker" selected, change it to "Node"
+
+4. **Configure the service manually**:
 
    - **Name**: `adlc-emergency-app`
    - **Environment**: `Node`

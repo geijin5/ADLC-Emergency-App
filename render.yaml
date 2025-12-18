@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: adlc-emergency-app
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: npm run render-build
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+
