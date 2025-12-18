@@ -9,6 +9,7 @@ services:
     startCommand: npm start
     healthCheckPath: /
     dockerfilePath: ""
+    skipCleanup: true
     envVars:
       - key: NODE_ENV
         value: production
