@@ -1534,8 +1534,24 @@ if (process.env.NODE_ENV === 'production') {
     console.error('Make sure to run "npm run build" before starting the server');
     console.error('Current working directory:', process.cwd());
     console.error('__dirname:', __dirname);
+    console.error('Attempting to list parent directory:', path.join(__dirname, '..'));
+    try {
+      const parentDir = path.join(__dirname, '..');
+      if (fs.existsSync(parentDir)) {
+        const files = fs.readdirSync(parentDir);
+        console.error('Files in parent directory:', files);
+      }
+    } catch (e) {
+      console.error('Error reading parent directory:', e.message);
+    }
   } else {
     console.log(`Serving static files from: ${buildPath}`);
+    try {
+      const buildFiles = fs.readdirSync(buildPath);
+      console.log('Files in build directory:', buildFiles);
+    } catch (e) {
+      console.error('Error reading build directory:', e.message);
+    }
     if (fs.existsSync(indexPath)) {
       console.log('✓ index.html found');
     } else {
