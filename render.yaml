@@ -5,7 +5,7 @@ services:
     env: node
     region: oregon
     plan: free
-    buildCommand: npm run render-build
+    buildCommand: npm install && cd server && npm install && cd ../client && npm install
     startCommand: npm start
     healthCheckPath: /
     dockerfilePath: ""
