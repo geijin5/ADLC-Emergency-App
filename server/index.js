@@ -1633,40 +1633,34 @@ if (process.env.NODE_ENV === 'production') {
     if (fs.existsSync(indexPath)) {
       res.sendFile(path.resolve(indexPath));
     } else {
-      console.error(`ERROR: index.html not found at ${indexPath}`);
-      console.error('Attempting to rebuild...');
-      
-      // Try to rebuild if index.html is missing
-      const { execSync } = require('child_process');
-      try {
-        const clientPath = path.join(__dirname, '../client');
-        process.chdir(clientPath);
-        execSync('CI=false npm run build', { 
-          stdio: 'pipe',
-          env: { ...process.env, CI: 'false' }
-        });
-        
-        // Check again
-        if (fs.existsSync(indexPath)) {
-          return res.sendFile(path.resolve(indexPath));
-        }
-      } catch (buildError) {
-        console.error('Rebuild failed:', buildError.message);
+      // Build is in progress or failed - show loading message
+      if (isBuilding) {
+        res.status(503).send(`
+          <html>
+            <head><title>Building...</title></head>
+            <body style="font-family: Arial, sans-serif; padding: 40px; text-align: center;">
+              <h1>Building React App</h1>
+              <p>The React app is currently being built. This may take 2-5 minutes.</p>
+              <p>Please wait and refresh the page in a few minutes.</p>
+              <p><small>This is a one-time process that happens on first deployment.</small></p>
+            </body>
+          </html>
+        `);
+      } else {
+        // Trigger build if not already building
+        buildReactAppAsync();
+        res.status(503).send(`
+          <html>
+            <head><title>Building...</title></head>
+            <body style="font-family: Arial, sans-serif; padding: 40px; text-align: center;">
+              <h1>Starting Build</h1>
+              <p>The React app build is starting. This may take 2-5 minutes.</p>
+              <p>Please wait and refresh the page in a few minutes.</p>
+              <p><small>This is a one-time process that happens on first deployment.</small></p>
+            </body>
+          </html>
+        `);
       }
-      
-      res.status(500).send(`
-        <html>
-          <head><title>Build Error</title></head>
-          <body style="font-family: Arial, sans-serif; padding: 20px;">
-            <h1>React app not built</h1>
-            <p>The React app build is missing. Please check the server logs.</p>
-            <p><strong>Build path:</strong> ${buildPath}</p>
-            <p><strong>Index path:</strong> ${indexPath}</p>
-            <p><strong>Build exists:</strong> ${fs.existsSync(buildPath)}</p>
-            <p><strong>Index exists:</strong> ${fs.existsSync(indexPath)}</p>
-          </body>
-        </html>
-      `);
     }
   });
 } else {
