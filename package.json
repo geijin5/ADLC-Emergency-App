@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "description": "Anaconda-Deer Lodge County Emergency Services App",
   "main": "server/index.js",
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=9.0.0"
+  },
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "cd server && node index.js",
@@ -12,7 +16,7 @@
     "start": "cd server && node start-production.js",
     "postinstall": "cd server && npm install && cd ../client && npm install",
     "heroku-postbuild": "npm run build",
-    "render-build": "npm install && cd server && npm install && cd ../client && npm install && cd ../client && CI=false npm run build && cd ../.. && node verify-build.js"
+    "render-build": "echo 'Starting build process...' && npm install --production=false && echo 'Root dependencies installed' && cd server && npm install --production=false && echo 'Server dependencies installed' && cd ../client && npm install --production=false && echo 'Client dependencies installed' && npm run build && echo 'React build completed' && cd ../.. && node verify-build.js && echo 'Build verification passed!'"
   },
   "keywords": ["emergency", "services", "public-safety"],
   "author": "",
