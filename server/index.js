@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken');
 const path = require('path');
 const fs = require('fs');
 const webpush = require('web-push');
+const { execSync } = require('child_process');
 require('dotenv').config();
 
 const app = express();

@@ -6,7 +6,7 @@ services:
     region: oregon
     plan: free
     buildCommand: npm install && cd server && npm install && cd ../client && npm install
-    startCommand: npm start
+    startCommand: cd server && node start-production.js
     healthCheckPath: /
     dockerfilePath: ""
     skipCleanup: true
