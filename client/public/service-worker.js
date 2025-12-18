@@ -1,14 +1,52 @@
-// Service Worker for Push Notifications
+// Service Worker for Push Notifications and PWA
+const CACHE_NAME = 'adlc-emergency-v1';
+const urlsToCache = [
+  '/',
+  '/static/css/main.css',
+  '/static/js/main.js',
+  '/logo.png',
+  '/manifest.json'
+];
+
 console.log('Service Worker: Script loaded');
 
 self.addEventListener('install', function(event) {
   console.log('Service Worker: Installing...');
-  self.skipWaiting(); // Activate immediately
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(function(cache) {
+        console.log('Service Worker: Caching files');
+        return cache.addAll(urlsToCache);
+      })
+      .then(() => self.skipWaiting()) // Activate immediately
+  );
 });
 
 self.addEventListener('activate', function(event) {
   console.log('Service Worker: Activating...');
-  event.waitUntil(self.clients.claim()); // Take control of all pages
+  event.waitUntil(
+    caches.keys().then(function(cacheNames) {
+      return Promise.all(
+        cacheNames.map(function(cacheName) {
+          if (cacheName !== CACHE_NAME) {
+            console.log('Service Worker: Deleting old cache', cacheName);
+            return caches.delete(cacheName);
+          }
+        })
+      );
+    }).then(() => self.clients.claim()) // Take control of all pages
+  );
+});
+
+// Fetch event for offline support
+self.addEventListener('fetch', function(event) {
+  event.respondWith(
+    caches.match(event.request)
+      .then(function(response) {
+        // Return cached version or fetch from network
+        return response || fetch(event.request);
+      })
+  );
 });
 
 self.addEventListener('push', function(event) {

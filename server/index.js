@@ -1521,14 +1521,38 @@ app.post('/api/personnel/push/send', authenticateToken, (req, res) => {
   res.json({ success: true, message: 'Push notification sent to all subscribers' });
 });
 
-// 404 handler for debugging (must be last, after all routes)
-app.use((req, res) => {
-  console.log(`404 - Route not found: ${req.method} ${req.path}`);
-  res.status(404).json({ error: `Route not found: ${req.method} ${req.path}` });
-});
+// Serve static files from React app in production
+if (process.env.NODE_ENV === 'production') {
+  // Serve static files from the React app
+  app.use(express.static(path.join(__dirname, '../client/build')));
+  
+  // The "catchall" handler: for any request that doesn't match an API route,
+  // send back React's index.html file.
+  app.get('*', (req, res) => {
+    // Don't serve React app for API routes
+    if (req.path.startsWith('/api/')) {
+      return res.status(404).json({ error: `Route not found: ${req.method} ${req.path}` });
+    }
+    res.sendFile(path.join(__dirname, '../client/build/index.html'));
+  });
+} else {
+  // 404 handler for debugging (development only)
+  app.use((req, res) => {
+    if (req.path.startsWith('/api/')) {
+      console.log(`404 - Route not found: ${req.method} ${req.path}`);
+      res.status(404).json({ error: `Route not found: ${req.method} ${req.path}` });
+    } else {
+      res.status(404).send('Route not found');
+    }
+  });
+}
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  if (process.env.NODE_ENV === 'production') {
+    console.log('Serving React app from client/build');
+  }
   console.log('Available routes:');
   console.log('  POST /api/personnel/closed-areas');
   console.log('  GET /api/personnel/closed-areas');
