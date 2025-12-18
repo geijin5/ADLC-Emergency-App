@@ -1,0 +1,5 @@
+# Tell Render to ignore Docker detection
+Dockerfile
+docker-compose.yml
+.dockerignore
+

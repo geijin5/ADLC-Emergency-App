@@ -4,21 +4,48 @@
 
 If Render is trying to use Docker and you see an error about missing Dockerfile, follow these steps:
 
-## Solution 1: Use render.yaml (Try This First)
+## Solution 1: Manual Service Configuration (RECOMMENDED - Most Reliable)
 
-The repository now includes a `render.yaml` file that explicitly sets `env: node`. 
+**IMPORTANT**: If Render keeps trying to use Docker, you MUST manually configure it and explicitly select "Node" environment.
 
-1. **Go to Render Dashboard** → Create New → **Blueprint** (not Web Service)
-2. **Connect your GitHub repository**: `geijin5/ADLC-Emergency-App`
-3. **Render will automatically detect and use `render.yaml`**
-4. **Set Environment Variables** in the Render dashboard:
+1. **Go to Render Dashboard** → **Delete any existing service** that's trying to use Docker
+
+2. **Create New** → **Web Service** (NOT Blueprint)
+
+3. **Connect your GitHub repository**: `geijin5/ADLC-Emergency-App`
+
+4. **CRITICAL STEP - Before clicking "Create"**:
+   - Look for **"Environment"** dropdown
+   - **MUST select "Node"** (NOT "Docker")
+   - If you see "Docker" selected, change it to "Node"
+   - This is the most important step!
+
+5. **Configure the service**:
+   - **Name**: `adlc-emergency-app`
+   - **Environment**: **Node** (verify this!)
+   - **Region**: Choose closest to you
+   - **Branch**: `main`
+   - **Root Directory**: (leave empty)
+   - **Build Command**: 
+     ```
+     npm run render-build
+     ```
+   - **Start Command**: 
+     ```
+     npm start
+     ```
+
+6. **Set Environment Variables**:
    - `NODE_ENV` = `production`
    - `JWT_SECRET` = (your strong secret key)
    - `VAPID_PUBLIC_KEY` = (your VAPID public key - optional)
    - `VAPID_PRIVATE_KEY` = (your VAPID private key - optional)
-5. **Click "Apply"**
 
-## Solution 2: Manual Service Configuration (If Blueprint Fails)
+7. **Click "Create Web Service"**
+
+## Solution 2: Use Blueprint (If Manual Doesn't Work)
+
+If you want to try the Blueprint method:
 
 If the Blueprint method still tries to use Docker, configure manually:
 

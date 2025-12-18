@@ -1,12 +1,14 @@
 services:
   - type: web
     name: adlc-emergency-app
+    runtime: node
     env: node
     region: oregon
     plan: free
     buildCommand: npm run render-build
     startCommand: npm start
     healthCheckPath: /
+    dockerfilePath: ""
     envVars:
       - key: NODE_ENV
         value: production
