@@ -1540,15 +1540,21 @@ if (process.env.NODE_ENV === 'production') {
       const originalCwd = process.cwd();
       
       console.log('Changing to client directory:', clientPath);
+      if (!fs.existsSync(clientPath)) {
+        throw new Error(`Client directory not found at ${clientPath}`);
+      }
       process.chdir(clientPath);
+      console.log('Current directory after change:', process.cwd());
       
       console.log('Installing client dependencies...');
       execSync('npm install --production=false', { 
         stdio: 'inherit',
         cwd: clientPath
       });
+      console.log('✓ Dependencies installed');
       
       console.log('Building React app (this may take 2-5 minutes)...');
+      console.log('Please wait, this is a one-time build...');
       execSync('CI=false npm run build', { 
         stdio: 'inherit',
         cwd: clientPath,
@@ -1558,11 +1564,32 @@ if (process.env.NODE_ENV === 'production') {
       
       process.chdir(originalCwd);
       
-      // Verify build was created
-      if (fs.existsSync(buildPath) && fs.existsSync(indexPath)) {
+      // Verify build was created - use absolute paths
+      const absoluteBuildPath = path.resolve(buildPath);
+      const absoluteIndexPath = path.resolve(indexPath);
+      
+      console.log('Verifying build...');
+      console.log('Checking:', absoluteBuildPath);
+      console.log('Build exists:', fs.existsSync(absoluteBuildPath));
+      console.log('Index exists:', fs.existsSync(absoluteIndexPath));
+      
+      if (fs.existsSync(absoluteBuildPath) && fs.existsSync(absoluteIndexPath)) {
+        console.log('========================================');
         console.log('✓ Build completed successfully!');
+        console.log('✓ Build directory:', absoluteBuildPath);
+        console.log('✓ index.html found');
+        console.log('========================================');
       } else {
-        console.error('WARNING: Build completed but verification failed');
+        // List what's actually there
+        try {
+          if (fs.existsSync(clientPath)) {
+            const files = fs.readdirSync(clientPath);
+            console.error('Files in client directory:', files);
+          }
+        } catch (e) {
+          console.error('Could not list client directory:', e.message);
+        }
+        throw new Error('Build completed but verification failed');
       }
     } catch (error) {
       console.error('ERROR: Failed to build React app:', error.message);
