@@ -2502,17 +2502,18 @@ app.listen(PORT, () => {
   console.log('  GET /api/debug/build-status (diagnostic)');
   
   // Verify admin user after server starts
-  setTimeout(() => {
-    db.get('SELECT id, username, role FROM users WHERE username = ?', ['admin'], (err, admin) => {
-      if (err) {
-        console.error('⚠️ Error checking admin user:', err);
-      } else if (admin) {
+  setTimeout(async () => {
+    try {
+      const admin = await get('SELECT id, username, role FROM users WHERE username = ?', ['admin']);
+      if (admin) {
         console.log(`✅ Admin user verified: ID=${admin.id}, username=${admin.username}, role=${admin.role}`);
         console.log('   Default login: username=admin, password=admin123');
       } else {
         console.log('⚠️ Admin user not found. It should be created automatically.');
       }
-    });
+    } catch (err) {
+      console.error('⚠️ Error checking admin user:', err);
+    }
   }, 2000);
 });
 
