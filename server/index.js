@@ -21,7 +21,8 @@ const { db, dbType } = initDatabase();
 const isPostgres = dbType === 'postgres';
 
 // Initialize database tables
-serialize(async () => {
+(async () => {
+  await serialize(async () => {
   // Departments table
   const deptTableSQL = isPostgres 
     ? `CREATE TABLE IF NOT EXISTS departments (
@@ -502,7 +503,7 @@ serialize(async () => {
     if (!err.message.includes('duplicate column') && !err.message.includes('already exists')) {
       console.error('Error adding crossroads column to search_rescue_operations:', err.message);
     }
-  });
+  }
 
   // Create default admin user (password: admin123)
   // This runs after all tables are created
@@ -545,7 +546,8 @@ serialize(async () => {
       console.error('Error details:', err.message);
     }
   }, 1000); // Wait 1 second to ensure all tables are created
-});
+  });
+})();
 
 // Initialize VAPID keys for web push
 // In production, generate keys with: npx web-push generate-vapid-keys

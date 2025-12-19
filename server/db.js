@@ -137,13 +137,22 @@ function all(sql, params = []) {
 }
 
 // Helper function to serialize multiple queries (SQLite only, PostgreSQL doesn't need this)
-function serialize(callback) {
+async function serialize(callback) {
   if (dbType === 'postgres') {
-    // PostgreSQL doesn't need serialization, just execute the callback
-    callback();
+    // PostgreSQL doesn't need serialization, just execute and await the callback
+    await callback();
   } else {
-    // SQLite serialization
-    db.serialize(callback);
+    // SQLite serialization - wrap in promise to handle async callback
+    return new Promise((resolve, reject) => {
+      db.serialize(async () => {
+        try {
+          await callback();
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
   }
 }
 
