@@ -1240,16 +1240,16 @@ app.put('/api/personnel/closed-areas/:id', authenticateToken, (req, res) => {
 
   values.push(id);
 
-  db.run(
-    `UPDATE closed_areas SET ${updates.join(', ')} WHERE id = ?`,
-    values,
-    function(err) {
-      if (err) {
-        return res.status(500).json({ error: 'Failed to update closed area' });
-      }
-      res.json({ success: true, message: 'Closed area updated successfully' });
-    }
-  );
+  try {
+    await run(
+      `UPDATE closed_areas SET ${updates.join(', ')} WHERE id = ?`,
+      values
+    );
+    res.json({ success: true, message: 'Closed area updated successfully' });
+  } catch (err) {
+    console.error('Error updating closed area:', err);
+    return res.status(500).json({ error: 'Failed to update closed area' });
+  }
 });
 
 app.delete('/api/personnel/closed-areas/:id', authenticateToken, async (req, res) => {
@@ -1284,7 +1284,7 @@ app.get('/api/personnel/parade-routes', authenticateToken, async (req, res) => {
   }
 });
 
-app.post('/api/personnel/parade-routes', authenticateToken, (req, res) => {
+app.post('/api/personnel/parade-routes', authenticateToken, async (req, res) => {
   const { name, description, address, coordinates, expires_at } = req.body;
 
   if (!name || !coordinates || !Array.isArray(coordinates) || coordinates.length < 2) {
@@ -1301,22 +1301,21 @@ app.post('/api/personnel/parade-routes', authenticateToken, (req, res) => {
     }
   }
 
-  db.run(
-    `INSERT INTO parade_routes (name, description, address, crossroads, coordinates, created_by, expires_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [name, description || '', address || '', req.body.crossroads || '', coordinatesJson, req.user.id, expiresAtValue],
-    function(err) {
-      if (err) {
-        console.error('Database error creating parade route:', err);
-        return res.status(500).json({ error: err.message || 'Failed to create parade route' });
-      }
-      res.json({ 
-        success: true, 
-        message: 'Parade route created successfully',
-        routeId: this.lastID 
-      });
-    }
-  );
+  try {
+    const result = await run(
+      `INSERT INTO parade_routes (name, description, address, crossroads, coordinates, created_by, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [name, description || '', address || '', req.body.crossroads || '', coordinatesJson, req.user.id, expiresAtValue]
+    );
+    res.json({ 
+      success: true, 
+      message: 'Parade route created successfully',
+      routeId: result.lastID 
+    });
+  } catch (err) {
+    console.error('Database error creating parade route:', err);
+    return res.status(500).json({ error: err.message || 'Failed to create parade route' });
+  }
 });
 
 app.put('/api/personnel/parade-routes/:id', authenticateToken, (req, res) => {
@@ -1364,27 +1363,28 @@ app.put('/api/personnel/parade-routes/:id', authenticateToken, (req, res) => {
 
   values.push(id);
 
-  db.run(
-    `UPDATE parade_routes SET ${updates.join(', ')} WHERE id = ?`,
-    values,
-    function(err) {
-      if (err) {
-        return res.status(500).json({ error: 'Failed to update parade route' });
-      }
-      res.json({ success: true, message: 'Parade route updated successfully' });
-    }
-  );
+  try {
+    await run(
+      `UPDATE parade_routes SET ${updates.join(', ')} WHERE id = ?`,
+      values
+    );
+    res.json({ success: true, message: 'Parade route updated successfully' });
+  } catch (err) {
+    console.error('Error updating parade route:', err);
+    return res.status(500).json({ error: 'Failed to update parade route' });
+  }
 });
 
-app.delete('/api/personnel/parade-routes/:id', authenticateToken, (req, res) => {
+app.delete('/api/personnel/parade-routes/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
 
-  db.run('DELETE FROM parade_routes WHERE id = ?', [id], function(err) {
-    if (err) {
-      return res.status(500).json({ error: 'Failed to delete parade route' });
-    }
+  try {
+    await run('DELETE FROM parade_routes WHERE id = ?', [id]);
     res.json({ success: true, message: 'Parade route deleted successfully' });
-  });
+  } catch (err) {
+    console.error('Error deleting parade route:', err);
+    return res.status(500).json({ error: 'Failed to delete parade route' });
+  }
 });
 
 // Detours Management
@@ -1407,7 +1407,7 @@ app.get('/api/personnel/detours', authenticateToken, async (req, res) => {
   }
 });
 
-app.post('/api/personnel/detours', authenticateToken, (req, res) => {
+app.post('/api/personnel/detours', authenticateToken, async (req, res) => {
   const { name, description, address, coordinates, expires_at } = req.body;
 
   if (!name || !coordinates || !Array.isArray(coordinates) || coordinates.length < 2) {
@@ -1424,22 +1424,21 @@ app.post('/api/personnel/detours', authenticateToken, (req, res) => {
     }
   }
 
-  db.run(
-    `INSERT INTO detours (name, description, address, crossroads, coordinates, created_by, expires_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [name, description || '', address || '', req.body.crossroads || '', coordinatesJson, req.user.id, expiresAtValue],
-    function(err) {
-      if (err) {
-        console.error('Database error creating detour:', err);
-        return res.status(500).json({ error: err.message || 'Failed to create detour' });
-      }
-      res.json({ 
-        success: true, 
-        message: 'Detour created successfully',
-        detourId: this.lastID 
-      });
-    }
-  );
+  try {
+    const result = await run(
+      `INSERT INTO detours (name, description, address, crossroads, coordinates, created_by, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [name, description || '', address || '', req.body.crossroads || '', coordinatesJson, req.user.id, expiresAtValue]
+    );
+    res.json({ 
+      success: true, 
+      message: 'Detour created successfully',
+      detourId: result.lastID 
+    });
+  } catch (err) {
+    console.error('Database error creating detour:', err);
+    return res.status(500).json({ error: err.message || 'Failed to create detour' });
+  }
 });
 
 app.put('/api/personnel/detours/:id', authenticateToken, (req, res) => {
@@ -1487,27 +1486,28 @@ app.put('/api/personnel/detours/:id', authenticateToken, (req, res) => {
 
   values.push(id);
 
-  db.run(
-    `UPDATE detours SET ${updates.join(', ')} WHERE id = ?`,
-    values,
-    function(err) {
-      if (err) {
-        return res.status(500).json({ error: 'Failed to update detour' });
-      }
-      res.json({ success: true, message: 'Detour updated successfully' });
-    }
-  );
+  try {
+    await run(
+      `UPDATE detours SET ${updates.join(', ')} WHERE id = ?`,
+      values
+    );
+    res.json({ success: true, message: 'Detour updated successfully' });
+  } catch (err) {
+    console.error('Error updating detour:', err);
+    return res.status(500).json({ error: 'Failed to update detour' });
+  }
 });
 
-app.delete('/api/personnel/detours/:id', authenticateToken, (req, res) => {
+app.delete('/api/personnel/detours/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
 
-  db.run('DELETE FROM detours WHERE id = ?', [id], function(err) {
-    if (err) {
-      return res.status(500).json({ error: 'Failed to delete detour' });
-    }
+  try {
+    await run('DELETE FROM detours WHERE id = ?', [id]);
     res.json({ success: true, message: 'Detour deleted successfully' });
-  });
+  } catch (err) {
+    console.error('Error deleting detour:', err);
+    return res.status(500).json({ error: 'Failed to delete detour' });
+  }
 });
 
 // Closed Roads Management
@@ -1530,7 +1530,7 @@ app.get('/api/personnel/closed-roads', authenticateToken, async (req, res) => {
   }
 });
 
-app.post('/api/personnel/closed-roads', authenticateToken, (req, res) => {
+app.post('/api/personnel/closed-roads', authenticateToken, async (req, res) => {
   console.log('POST /api/personnel/closed-roads - Request received');
   const { name, description, address, coordinates, expires_at } = req.body;
 
@@ -1548,22 +1548,21 @@ app.post('/api/personnel/closed-roads', authenticateToken, (req, res) => {
     }
   }
 
-  db.run(
-    `INSERT INTO closed_roads (name, description, address, coordinates, created_by, expires_at)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [name, description || '', address || '', coordinatesJson, req.user.id, expiresAtValue],
-    function(err) {
-      if (err) {
-        console.error('Database error creating closed road:', err);
-        return res.status(500).json({ error: err.message || 'Failed to create closed road' });
-      }
-      res.json({ 
-        success: true, 
-        message: 'Closed road created successfully',
-        roadId: this.lastID 
-      });
-    }
-  );
+  try {
+    const result = await run(
+      `INSERT INTO closed_roads (name, description, address, crossroads, coordinates, created_by, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [name, description || '', address || '', req.body.crossroads || '', coordinatesJson, req.user.id, expiresAtValue]
+    );
+    res.json({ 
+      success: true, 
+      message: 'Closed road created successfully',
+      roadId: result.lastID 
+    });
+  } catch (err) {
+    console.error('Database error creating closed road:', err);
+    return res.status(500).json({ error: err.message || 'Failed to create closed road' });
+  }
 });
 
 app.put('/api/personnel/closed-roads/:id', authenticateToken, (req, res) => {
@@ -1611,38 +1610,39 @@ app.put('/api/personnel/closed-roads/:id', authenticateToken, (req, res) => {
 
   values.push(id);
 
-  db.run(
-    `UPDATE closed_roads SET ${updates.join(', ')} WHERE id = ?`,
-    values,
-    function(err) {
-      if (err) {
-        return res.status(500).json({ error: 'Failed to update closed road' });
-      }
-      res.json({ success: true, message: 'Closed road updated successfully' });
-    }
-  );
+  try {
+    await run(
+      `UPDATE closed_roads SET ${updates.join(', ')} WHERE id = ?`,
+      values
+    );
+    res.json({ success: true, message: 'Closed road updated successfully' });
+  } catch (err) {
+    console.error('Error updating closed road:', err);
+    return res.status(500).json({ error: 'Failed to update closed road' });
+  }
 });
 
-app.delete('/api/personnel/closed-roads', authenticateToken, (req, res) => {
+app.delete('/api/personnel/closed-roads', authenticateToken, async (req, res) => {
   // Delete all closed roads - MUST be before /:id route
-  db.run('DELETE FROM closed_roads', function(err) {
-    if (err) {
-      console.error('Error deleting all closed roads:', err);
-      return res.status(500).json({ error: 'Failed to delete all closed roads' });
-    }
-    res.json({ success: true, message: `All closed roads deleted successfully (${this.changes} roads)` });
-  });
+  try {
+    const result = await run('DELETE FROM closed_roads');
+    res.json({ success: true, message: `All closed roads deleted successfully (${result.changes} roads)` });
+  } catch (err) {
+    console.error('Error deleting all closed roads:', err);
+    return res.status(500).json({ error: 'Failed to delete all closed roads' });
+  }
 });
 
-app.delete('/api/personnel/closed-roads/:id', authenticateToken, (req, res) => {
+app.delete('/api/personnel/closed-roads/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
 
-  db.run('DELETE FROM closed_roads WHERE id = ?', [id], function(err) {
-    if (err) {
-      return res.status(500).json({ error: 'Failed to delete closed road' });
-    }
+  try {
+    await run('DELETE FROM closed_roads WHERE id = ?', [id]);
     res.json({ success: true, message: 'Closed road deleted successfully' });
-  });
+  } catch (err) {
+    console.error('Error deleting closed road:', err);
+    return res.status(500).json({ error: 'Failed to delete closed road' });
+  }
 });
 
 // Callouts Management (MCI Mass Callouts)
@@ -1706,13 +1706,14 @@ app.post('/api/personnel/callouts', authenticateToken, (req, res) => {
   );
 });
 
-app.put('/api/personnel/callouts/:id/acknowledge', authenticateToken, (req, res) => {
+app.put('/api/personnel/callouts/:id/acknowledge', authenticateToken, async (req, res) => {
   const { id } = req.params;
   
-  // Get current acknowledged list
-  db.get('SELECT acknowledged_by FROM callouts WHERE id = ?', [id], (err, callout) => {
-    if (err) {
-      return res.status(500).json({ error: 'Failed to fetch callout' });
+  try {
+    // Get current acknowledged list
+    const callout = await get('SELECT acknowledged_by FROM callouts WHERE id = ?', [id]);
+    if (!callout) {
+      return res.status(404).json({ error: 'Callout not found' });
     }
 
     let acknowledged = [];
@@ -1729,20 +1730,18 @@ app.put('/api/personnel/callouts/:id/acknowledge', authenticateToken, (req, res)
       acknowledged.push(req.user.id);
     }
 
-    db.run(
+    await run(
       'UPDATE callouts SET acknowledged_by = ? WHERE id = ?',
-      [JSON.stringify(acknowledged), id],
-      function(err) {
-        if (err) {
-          return res.status(500).json({ error: 'Failed to acknowledge callout' });
-        }
-        res.json({ success: true, message: 'Callout acknowledged' });
-      }
+      [JSON.stringify(acknowledged), id]
     );
-  });
+    res.json({ success: true, message: 'Callout acknowledged' });
+  } catch (err) {
+    console.error('Error acknowledging callout:', err);
+    return res.status(500).json({ error: 'Failed to acknowledge callout' });
+  }
 });
 
-app.put('/api/personnel/callouts/:id', authenticateToken, (req, res) => {
+app.put('/api/personnel/callouts/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
   const { is_active } = req.body;
 
@@ -1750,20 +1749,20 @@ app.put('/api/personnel/callouts/:id', authenticateToken, (req, res) => {
     return res.status(400).json({ error: 'is_active is required' });
   }
 
-  db.run(
-    'UPDATE callouts SET is_active = ? WHERE id = ?',
-    [is_active ? 1 : 0, id],
-    function(err) {
-      if (err) {
-        return res.status(500).json({ error: 'Failed to update callout' });
-      }
-      res.json({ success: true, message: 'Callout updated successfully' });
-    }
-  );
+  try {
+    await run(
+      'UPDATE callouts SET is_active = ? WHERE id = ?',
+      [is_active ? (isPostgres ? true : 1) : (isPostgres ? false : 0), id]
+    );
+    res.json({ success: true, message: 'Callout updated successfully' });
+  } catch (err) {
+    console.error('Error updating callout:', err);
+    return res.status(500).json({ error: 'Failed to update callout' });
+  }
 });
 
 // Chat Routes
-app.get('/api/personnel/chat/messages', authenticateToken, (req, res) => {
+app.get('/api/personnel/chat/messages', authenticateToken, async (req, res) => {
   const { department_id } = req.query;
   
   let query;
@@ -1789,73 +1788,55 @@ app.get('/api/personnel/chat/messages', authenticateToken, (req, res) => {
     params = [];
   }
   
-  db.all(query, params, (err, messages) => {
-    if (err) {
-      console.error('Error fetching chat messages:', err);
-      return res.status(500).json({ error: 'Failed to fetch messages' });
-    }
+  try {
+    const messages = await all(query, params);
     res.json(messages);
-  });
+  } catch (err) {
+    console.error('Error fetching chat messages:', err);
+    return res.status(500).json({ error: 'Failed to fetch messages' });
+  }
 });
 
-app.post('/api/personnel/chat/messages', authenticateToken, (req, res) => {
+app.post('/api/personnel/chat/messages', authenticateToken, async (req, res) => {
   const { message, department_id } = req.body;
   
   if (!message || !message.trim()) {
     return res.status(400).json({ error: 'Message is required' });
   }
   
-  // Get user info
-  db.get('SELECT name, department_id FROM users WHERE id = ?', [req.user.id], (err, user) => {
-    if (err) {
-      return res.status(500).json({ error: 'Failed to get user info' });
+  try {
+    // Get user info
+    const user = await get('SELECT name, department_id FROM users WHERE id = ?', [req.user.id]);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
     }
     
     let departmentName = null;
     if (department_id && department_id !== 'all') {
       // Get department name
-      db.get('SELECT name FROM departments WHERE id = ?', [department_id], (err, dept) => {
-        if (!err && dept) {
-          departmentName = dept.name;
-        }
-        
-        db.run(
-          `INSERT INTO chat_messages (message, department_id, user_id, user_name, department_name)
-           VALUES (?, ?, ?, ?, ?)`,
-          [message.trim(), department_id === 'all' ? null : department_id, req.user.id, user.name, departmentName],
-          function(err) {
-            if (err) {
-              console.error('Error creating chat message:', err);
-              return res.status(500).json({ error: 'Failed to send message' });
-            }
-            res.json({ 
-              success: true, 
-              message: 'Message sent successfully',
-              messageId: this.lastID 
-            });
-          }
-        );
-      });
+      const dept = await get('SELECT name FROM departments WHERE id = ?', [department_id]);
+      if (dept) {
+        departmentName = dept.name;
+      }
     } else {
-      // Message to all departments
-      db.run(
-        `INSERT INTO chat_messages (message, department_id, user_id, user_name, department_name)
-         VALUES (?, ?, ?, ?, ?)`,
-        [message.trim(), null, req.user.id, user.name, 'All Departments'],
-        function(err) {
-          if (err) {
-            console.error('Error creating chat message:', err);
-            return res.status(500).json({ error: 'Failed to send message' });
-          }
-          res.json({ 
-            success: true, 
-            message: 'Message sent successfully',
-            messageId: this.lastID 
-          });
-        }
-      );
+      departmentName = 'All Departments';
     }
-  });
+    
+    const result = await run(
+      `INSERT INTO chat_messages (message, department_id, user_id, user_name, department_name)
+       VALUES (?, ?, ?, ?, ?)`,
+      [message.trim(), department_id === 'all' ? null : department_id, req.user.id, user.name, departmentName]
+    );
+    
+    res.json({ 
+      success: true, 
+      message: 'Message sent successfully',
+      messageId: result.lastID 
+    });
+  } catch (err) {
+    console.error('Error creating chat message:', err);
+    return res.status(500).json({ error: 'Failed to send message' });
+  }
 });
 
 // Search and Rescue Operations Routes
@@ -1899,7 +1880,7 @@ app.get('/api/public/search-rescue', async (req, res) => {
   }
 });
 
-app.post('/api/personnel/search-rescue', authenticateToken, (req, res) => {
+app.post('/api/personnel/search-rescue', authenticateToken, async (req, res) => {
   const { 
     case_number, 
     title, 
@@ -1966,37 +1947,36 @@ app.post('/api/personnel/search-rescue', authenticateToken, (req, res) => {
     }
   }
 
-  db.run(
-    `INSERT INTO search_rescue_operations (
-      case_number, title, description, location, crossroads, latitude, longitude, 
-      status, priority, missing_person_name, missing_person_age, 
-      missing_person_description, last_seen_location, last_seen_time,
-      contact_name, contact_phone, assigned_team, search_area_coordinates,
-      created_by
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      caseNum, title, description || '', location, req.body.crossroads || '', lat, lng,
-      status || 'active', priority || 'medium',
-      missing_person_name || '', missing_person_age || '',
-      missing_person_description || '', last_seen_location || '', lastSeenTimeValue,
-      contact_name || '', contact_phone || '', assigned_team || '', searchAreaJson,
-      req.user.id
-    ],
-    function(err) {
-      if (err) {
-        console.error('Database error creating SAR operation:', err);
-        return res.status(500).json({ error: err.message || 'Failed to create search and rescue operation' });
-      }
-      res.json({ 
-        success: true, 
-        message: 'Search and rescue operation created successfully',
-        operationId: this.lastID 
-      });
-    }
-  );
+  try {
+    const result = await run(
+      `INSERT INTO search_rescue_operations (
+        case_number, title, description, location, crossroads, latitude, longitude, 
+        status, priority, missing_person_name, missing_person_age, 
+        missing_person_description, last_seen_location, last_seen_time,
+        contact_name, contact_phone, assigned_team, search_area_coordinates,
+        created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        caseNum, title, description || '', location, req.body.crossroads || '', lat, lng,
+        status || 'active', priority || 'medium',
+        missing_person_name || '', missing_person_age || '',
+        missing_person_description || '', last_seen_location || '', lastSeenTimeValue,
+        contact_name || '', contact_phone || '', assigned_team || '', searchAreaJson,
+        req.user.id
+      ]
+    );
+    res.json({ 
+      success: true, 
+      message: 'Search and rescue operation created successfully',
+      operationId: result.lastID 
+    });
+  } catch (err) {
+    console.error('Database error creating SAR operation:', err);
+    return res.status(500).json({ error: err.message || 'Failed to create search and rescue operation' });
+  }
 });
 
-app.put('/api/personnel/search-rescue/:id', authenticateToken, (req, res) => {
+app.put('/api/personnel/search-rescue/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
   const { 
     title, 
@@ -2145,60 +2125,60 @@ app.put('/api/personnel/search-rescue/:id', authenticateToken, (req, res) => {
   values.push(new Date().toISOString());
   values.push(id);
 
-  db.run(
-    `UPDATE search_rescue_operations SET ${updates.join(', ')} WHERE id = ?`,
-    values,
-    function(err) {
-      if (err) {
-        return res.status(500).json({ error: 'Failed to update search and rescue operation' });
-      }
-      res.json({ success: true, message: 'Search and rescue operation updated successfully' });
-    }
-  );
+  try {
+    await run(
+      `UPDATE search_rescue_operations SET ${updates.join(', ')} WHERE id = ?`,
+      values
+    );
+    res.json({ success: true, message: 'Search and rescue operation updated successfully' });
+  } catch (err) {
+    console.error('Error updating search and rescue operation:', err);
+    return res.status(500).json({ error: 'Failed to update search and rescue operation' });
+  }
 });
 
-app.delete('/api/personnel/search-rescue/:id', authenticateToken, (req, res) => {
+app.delete('/api/personnel/search-rescue/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
 
-  db.run('DELETE FROM search_rescue_operations WHERE id = ?', [id], function(err) {
-    if (err) {
-      return res.status(500).json({ error: 'Failed to delete search and rescue operation' });
-    }
+  try {
+    await run('DELETE FROM search_rescue_operations WHERE id = ?', [id]);
     res.json({ success: true, message: 'Search and rescue operation deleted successfully' });
-  });
+  } catch (err) {
+    console.error('Error deleting search and rescue operation:', err);
+    return res.status(500).json({ error: 'Failed to delete search and rescue operation' });
+  }
 });
 
 // Health check endpoint to verify database and server are working
-app.get('/api/health', (req, res) => {
-  // Check if database is accessible
-  db.get('SELECT COUNT(*) as count FROM users', [], (err, result) => {
-    if (err) {
-      console.error('Database health check failed:', err);
-      return res.status(500).json({ 
-        status: 'error', 
-        message: 'Database connection failed',
-        error: err.message 
-      });
-    }
+app.get('/api/health', async (req, res) => {
+  try {
+    // Check if database is accessible
+    const result = await get('SELECT COUNT(*) as count FROM users', []);
     
     // Check if admin user exists
-    db.get('SELECT username, role FROM users WHERE username = ?', ['admin'], (adminErr, adminUser) => {
-      res.json({ 
-        status: 'ok', 
-        message: 'Server and database are operational',
-        userCount: result.count,
-        adminUserExists: !!adminUser,
-        adminUser: adminUser || null,
-        databasePath: dbPath,
-        environment: process.env.NODE_ENV || 'development',
-        defaultCredentials: {
-          username: 'admin',
-          password: 'admin123',
-          note: 'Use these credentials if admin user exists'
-        }
-      });
+    const adminUser = await get('SELECT username, role FROM users WHERE username = ?', ['admin']);
+    
+    res.json({ 
+      status: 'ok', 
+      message: 'Server and database are operational',
+      userCount: result ? (isPostgres ? parseInt(result.count) : result.count) : 0,
+      adminUserExists: !!adminUser,
+      adminUser: adminUser || null,
+      environment: process.env.NODE_ENV || 'development',
+      defaultCredentials: {
+        username: 'admin',
+        password: 'admin123',
+        note: 'Use these credentials if admin user exists'
+      }
     });
-  });
+  } catch (err) {
+    console.error('Database health check failed:', err);
+    return res.status(500).json({ 
+      status: 'error', 
+      message: 'Database connection failed',
+      error: err.message 
+    });
+  }
 });
 
 // Push Notification Routes
