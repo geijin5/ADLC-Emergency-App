@@ -1578,16 +1578,24 @@ app.post('/api/personnel/search-rescue', authenticateToken, (req, res) => {
   // Generate case number if not provided
   const caseNum = case_number || `SAR-${Date.now()}`;
   
-  // Validate coordinates if provided
+  // Validate coordinates if provided (both must be provided together, or both can be null/empty)
   let lat = null;
   let lng = null;
-  if (latitude !== undefined && longitude !== undefined) {
+  // Check if coordinates are provided (not undefined, not null, not empty string)
+  const hasLatitude = latitude !== undefined && latitude !== null && latitude !== '';
+  const hasLongitude = longitude !== undefined && longitude !== null && longitude !== '';
+  
+  if (hasLatitude && hasLongitude) {
     lat = parseFloat(latitude);
     lng = parseFloat(longitude);
     if (isNaN(lat) || isNaN(lng)) {
       return res.status(400).json({ error: 'Latitude and longitude must be valid numbers' });
     }
+  } else if (hasLatitude || hasLongitude) {
+    // If only one is provided, that's an error
+    return res.status(400).json({ error: 'Both latitude and longitude must be provided together, or both can be left empty' });
   }
+  // If neither is provided, lat and lng remain null (which is fine)
 
   // Parse search area coordinates if provided
   let searchAreaJson = null;
@@ -1677,15 +1685,30 @@ app.put('/api/personnel/search-rescue/:id', authenticateToken, (req, res) => {
     updates.push('location = ?');
     values.push(location);
   }
-  if (latitude !== undefined && longitude !== undefined) {
-    const lat = parseFloat(latitude);
-    const lng = parseFloat(longitude);
-    if (isNaN(lat) || isNaN(lng)) {
-      return res.status(400).json({ error: 'Latitude and longitude must be valid numbers' });
+  // Handle latitude/longitude updates - both must be provided together or both cleared
+  if (latitude !== undefined || longitude !== undefined) {
+    const hasLatitude = latitude !== undefined && latitude !== null && latitude !== '';
+    const hasLongitude = longitude !== undefined && longitude !== null && longitude !== '';
+    
+    if (hasLatitude && hasLongitude) {
+      // Both provided - validate and update
+      const lat = parseFloat(latitude);
+      const lng = parseFloat(longitude);
+      if (isNaN(lat) || isNaN(lng)) {
+        return res.status(400).json({ error: 'Latitude and longitude must be valid numbers' });
+      }
+      updates.push('latitude = ?');
+      updates.push('longitude = ?');
+      values.push(lat, lng);
+    } else if (hasLatitude || hasLongitude) {
+      // Only one provided - error
+      return res.status(400).json({ error: 'Both latitude and longitude must be provided together, or both can be cleared' });
+    } else {
+      // Both are null/empty - clear them
+      updates.push('latitude = ?');
+      updates.push('longitude = ?');
+      values.push(null, null);
     }
-    updates.push('latitude = ?');
-    updates.push('longitude = ?');
-    values.push(lat, lng);
   }
   if (status !== undefined) {
     updates.push('status = ?');

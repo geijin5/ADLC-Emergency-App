@@ -115,6 +115,7 @@ const PersonnelDashboard = () => {
     search_area_coordinates: ''
   });
   const [geocoding, setGeocoding] = useState(false);
+  const [sarGeocoding, setSarGeocoding] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -392,6 +393,61 @@ const PersonnelDashboard = () => {
     }
   };
 
+  const handleGeocodeSARLocation = async () => {
+    if (!sarForm.location || !sarForm.location.trim()) {
+      alert('Please enter a location first');
+      return;
+    }
+
+    setSarGeocoding(true);
+    try {
+      // Deer Lodge County bounds
+      const DEER_LODGE_BOUNDS = [
+        [45.7, -113.3], // Southwest
+        [46.6, -112.5]  // Northeast
+      ];
+
+      const query = `${sarForm.location}, Deer Lodge County, Montana`;
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&bounded=1&viewbox=${DEER_LODGE_BOUNDS[1][1]},${DEER_LODGE_BOUNDS[1][0]},${DEER_LODGE_BOUNDS[0][1]},${DEER_LODGE_BOUNDS[0][0]}`,
+        {
+          headers: {
+            'User-Agent': 'ADLC-Emergency-App'
+          }
+        }
+      );
+
+      const data = await response.json();
+
+      // Filter results to ensure they're within Deer Lodge County bounds
+      const validResults = data.filter(result => {
+        const lat = parseFloat(result.lat);
+        const lng = parseFloat(result.lon);
+        return lat >= DEER_LODGE_BOUNDS[0][0] && 
+               lat <= DEER_LODGE_BOUNDS[1][0] &&
+               lng >= DEER_LODGE_BOUNDS[0][1] && 
+               lng <= DEER_LODGE_BOUNDS[1][1];
+      });
+
+      if (validResults.length > 0) {
+        const result = validResults[0];
+        setSarForm({
+          ...sarForm,
+          latitude: result.lat,
+          longitude: result.lon
+        });
+        alert(`Location found in Deer Lodge County: ${result.display_name}\nCoordinates: ${result.lat}, ${result.lon}`);
+      } else {
+        alert('Location not found in Deer Lodge County, Montana. You can still create the operation without coordinates, or enter coordinates manually.');
+      }
+    } catch (error) {
+      console.error('Geocoding error:', error);
+      alert('Failed to geocode location. You can still create the operation without coordinates, or enter coordinates manually.');
+    } finally {
+      setSarGeocoding(false);
+    }
+  };
+
   const handleCreateSAR = async (e) => {
     e.preventDefault();
     try {
@@ -400,12 +456,13 @@ const PersonnelDashboard = () => {
         return;
       }
 
+      // Convert empty strings to null for optional fields
       const sarData = {
         ...sarForm,
-        latitude: sarForm.latitude || null,
-        longitude: sarForm.longitude || null,
-        search_area_coordinates: sarForm.search_area_coordinates ? JSON.parse(sarForm.search_area_coordinates) : null,
-        last_seen_time: sarForm.last_seen_time || null
+        latitude: sarForm.latitude && sarForm.latitude.trim() !== '' ? sarForm.latitude : null,
+        longitude: sarForm.longitude && sarForm.longitude.trim() !== '' ? sarForm.longitude : null,
+        search_area_coordinates: sarForm.search_area_coordinates && sarForm.search_area_coordinates.trim() !== '' ? JSON.parse(sarForm.search_area_coordinates) : null,
+        last_seen_time: sarForm.last_seen_time && sarForm.last_seen_time.trim() !== '' ? sarForm.last_seen_time : null
       };
 
       if (editingSAR) {
@@ -3061,31 +3118,45 @@ const PersonnelDashboard = () => {
                   rows="3"
                 />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                <div className="form-group">
-                  <label>Location *</label>
-                  <input
-                    type="text"
-                    className="input"
-                    value={sarForm.location}
-                    onChange={(e) => setSarForm({ ...sarForm, location: e.target.value })}
-                    placeholder="e.g., Lost Creek Trail, Anaconda"
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Priority</label>
-                  <select
-                    className="select"
-                    value={sarForm.priority}
-                    onChange={(e) => setSarForm({ ...sarForm, priority: e.target.value })}
+              <div className="form-group">
+                <label>Location *</label>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
+                  <div style={{ flex: 1 }}>
+                    <input
+                      type="text"
+                      className="input"
+                      value={sarForm.location}
+                      onChange={(e) => setSarForm({ ...sarForm, location: e.target.value })}
+                      placeholder="e.g., Lost Creek Trail, Anaconda"
+                      required
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleGeocodeSARLocation}
+                    className="btn btn-primary"
+                    disabled={sarGeocoding || !sarForm.location || !sarForm.location.trim()}
+                    style={{ whiteSpace: 'nowrap' }}
                   >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                    <option value="critical">Critical</option>
-                  </select>
+                    {sarGeocoding ? 'Finding...' : 'Find Coordinates'}
+                  </button>
                 </div>
+                <small style={{ color: '#d1d5db', marginTop: '5px', display: 'block' }}>
+                  Enter a location in Deer Lodge County and click "Find Coordinates" to automatically get latitude and longitude, or enter coordinates manually below. You can also create the operation with just the location text if coordinates aren't available.
+                </small>
+              </div>
+              <div className="form-group">
+                <label>Priority</label>
+                <select
+                  className="select"
+                  value={sarForm.priority}
+                  onChange={(e) => setSarForm({ ...sarForm, priority: e.target.value })}
+                >
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="critical">Critical</option>
+                </select>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                 <div className="form-group">
