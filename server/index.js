@@ -2215,7 +2215,7 @@ app.get('/api/public/push/vapid-key', (req, res) => {
   res.json({ publicKey: VAPID_PUBLIC_KEY });
 });
 
-app.post('/api/public/push/subscribe', (req, res) => {
+app.post('/api/public/push/subscribe', async (req, res) => {
   const { subscription } = req.body;
 
   console.log('Received subscription request:', {
@@ -2236,31 +2236,29 @@ app.post('/api/public/push/subscribe', (req, res) => {
   }
 
   // Store subscription in database
-  (async () => {
-    try {
-      if (isPostgres) {
-        // PostgreSQL uses INSERT ... ON CONFLICT
-        await run(
-          `INSERT INTO push_subscriptions (endpoint, p256dh, auth)
-           VALUES (?, ?, ?)
-           ON CONFLICT (endpoint) DO UPDATE SET p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth`,
-          [subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth]
-        );
-      } else {
-        // SQLite uses INSERT OR REPLACE
-        await run(
-          `INSERT OR REPLACE INTO push_subscriptions (endpoint, p256dh, auth)
-           VALUES (?, ?, ?)`,
-          [subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth]
-        );
-      }
-      console.log(`✅ Subscription saved successfully. Endpoint: ${subscription.endpoint.substring(0, 50)}...`);
-      res.json({ success: true, message: 'Subscription saved successfully' });
-    } catch (err) {
-      console.error('Error storing push subscription:', err);
-      return res.status(500).json({ error: 'Failed to store subscription' });
+  try {
+    if (isPostgres) {
+      // PostgreSQL uses INSERT ... ON CONFLICT
+      await run(
+        `INSERT INTO push_subscriptions (endpoint, p256dh, auth)
+         VALUES (?, ?, ?)
+         ON CONFLICT (endpoint) DO UPDATE SET p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth`,
+        [subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth]
+      );
+    } else {
+      // SQLite uses INSERT OR REPLACE
+      await run(
+        `INSERT OR REPLACE INTO push_subscriptions (endpoint, p256dh, auth)
+         VALUES (?, ?, ?)`,
+        [subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth]
+      );
     }
-  })();
+    console.log(`✅ Subscription saved successfully. Endpoint: ${subscription.endpoint.substring(0, 50)}...`);
+    res.json({ success: true, message: 'Subscription saved successfully' });
+  } catch (err) {
+    console.error('Error storing push subscription:', err);
+    return res.status(500).json({ error: 'Failed to store subscription' });
+  }
 });
 
 app.post('/api/public/push/unsubscribe', async (req, res) => {
