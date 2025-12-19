@@ -1180,7 +1180,7 @@ app.post('/api/personnel/closed-areas', authenticateToken, async (req, res) => {
   }
 });
 
-app.put('/api/personnel/closed-areas/:id', authenticateToken, (req, res) => {
+app.put('/api/personnel/closed-areas/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
   const { name, description, address, crossroads, latitude, longitude, radius, reason, is_active, expires_at } = req.body;
 
