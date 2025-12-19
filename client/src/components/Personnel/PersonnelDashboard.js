@@ -30,7 +30,6 @@ const PersonnelDashboard = () => {
   const [editingSAR, setEditingSAR] = useState(null);
   const [editingArea, setEditingArea] = useState(null);
   const [editingRoute, setEditingRoute] = useState(null);
-  const [editingDetour, setEditingDetour] = useState(null);
   const [editingClosedRoad, setEditingClosedRoad] = useState(null);
   const [editingUser, setEditingUser] = useState(null);
   const [chatMessages, setChatMessages] = useState([]);
@@ -132,6 +131,7 @@ const PersonnelDashboard = () => {
     fetchData();
     const interval = setInterval(fetchData, 30000); // Refresh every 30 seconds
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -140,6 +140,7 @@ const PersonnelDashboard = () => {
       const interval = setInterval(fetchChatMessages, 5000); // Refresh chat every 5 seconds
       return () => clearInterval(interval);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showChatModal, selectedChatDept]);
 
   useEffect(() => {
