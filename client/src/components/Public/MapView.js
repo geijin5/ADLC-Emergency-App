@@ -352,6 +352,11 @@ const MapView = ({ refreshTrigger }) => {
                           📍 {route.address}
                         </p>
                       )}
+                      {route.crossroads && (
+                        <p style={{ margin: '5px 0', fontSize: '12px', color: '#9ca3af' }}>
+                          🚦 {route.crossroads}
+                        </p>
+                      )}
                       {route.description && <p style={{ margin: '5px 0', color: '#d1d5db' }}>{route.description}</p>}
                       {route.expires_at && (
                         <p style={{ margin: '5px 0', fontSize: '12px', color: '#d1d5db' }}>
@@ -393,6 +398,11 @@ const MapView = ({ refreshTrigger }) => {
                           📍 {detour.address}
                         </p>
                       )}
+                      {detour.crossroads && (
+                        <p style={{ margin: '5px 0', fontSize: '12px', color: '#9ca3af' }}>
+                          🚦 {detour.crossroads}
+                        </p>
+                      )}
                       {detour.description && <p style={{ margin: '5px 0', color: '#d1d5db' }}>{detour.description}</p>}
                       {detour.expires_at && (
                         <p style={{ margin: '5px 0', fontSize: '12px', color: '#d1d5db' }}>
@@ -432,6 +442,11 @@ const MapView = ({ refreshTrigger }) => {
                       {road.address && (
                         <p style={{ margin: '5px 0', fontWeight: '600', color: '#f9fafb' }}>
                           📍 {road.address}
+                        </p>
+                      )}
+                      {road.crossroads && (
+                        <p style={{ margin: '5px 0', fontSize: '12px', color: '#9ca3af' }}>
+                          🚦 {road.crossroads}
                         </p>
                       )}
                       {road.description && <p style={{ margin: '5px 0', color: '#d1d5db' }}>{road.description}</p>}
@@ -487,6 +502,11 @@ const MapView = ({ refreshTrigger }) => {
                             <p style={{ margin: '5px 0', fontWeight: '600', color: '#f9fafb' }}>
                               📍 {op.location}
                             </p>
+                            {op.crossroads && (
+                              <p style={{ margin: '5px 0', fontSize: '12px', color: '#9ca3af' }}>
+                                🚦 {op.crossroads}
+                              </p>
+                            )}
                             {op.description && <p style={{ margin: '5px 0', color: '#d1d5db' }}>{op.description}</p>}
                             {op.missing_person_name && (
                               <p style={{ margin: '5px 0', color: '#d1d5db' }}>
@@ -571,6 +591,11 @@ const MapView = ({ refreshTrigger }) => {
                       {area.address && (
                         <p style={{ margin: '5px 0', fontWeight: '600', color: '#f9fafb' }}>
                           📍 {area.address}
+                        </p>
+                      )}
+                      {area.crossroads && (
+                        <p style={{ margin: '5px 0', fontSize: '12px', color: '#9ca3af' }}>
+                          🚦 {area.crossroads}
                         </p>
                       )}
                       {area.description && <p style={{ margin: '5px 0', color: '#d1d5db' }}>{area.description}</p>}

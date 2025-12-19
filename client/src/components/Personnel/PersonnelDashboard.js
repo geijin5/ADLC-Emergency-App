@@ -28,6 +28,10 @@ const PersonnelDashboard = () => {
   const [showChatModal, setShowChatModal] = useState(false);
   const [showSARModal, setShowSARModal] = useState(false);
   const [editingSAR, setEditingSAR] = useState(null);
+  const [editingArea, setEditingArea] = useState(null);
+  const [editingRoute, setEditingRoute] = useState(null);
+  const [editingDetour, setEditingDetour] = useState(null);
+  const [editingClosedRoad, setEditingClosedRoad] = useState(null);
   const [chatMessages, setChatMessages] = useState([]);
   const [chatMessage, setChatMessage] = useState('');
   const [selectedChatDept, setSelectedChatDept] = useState('all');
@@ -45,6 +49,7 @@ const PersonnelDashboard = () => {
     name: '',
     description: '',
     address: '',
+    crossroads: '',
     latitude: '46.1286',
     longitude: '-112.9422',
     radius: '500',
@@ -55,6 +60,7 @@ const PersonnelDashboard = () => {
     name: '',
     description: '',
     address: '',
+    crossroads: '',
     streets: '',
     coordinates: '',
     expires_at: ''
@@ -63,6 +69,7 @@ const PersonnelDashboard = () => {
     name: '',
     description: '',
     address: '',
+    crossroads: '',
     streets: '',
     coordinates: '',
     expires_at: ''
@@ -100,6 +107,7 @@ const PersonnelDashboard = () => {
     title: '',
     description: '',
     location: '',
+    crossroads: '',
     latitude: '',
     longitude: '',
     status: 'active',
@@ -457,8 +465,10 @@ const PersonnelDashboard = () => {
       }
 
       // Convert empty strings to null for optional fields
+      // Convert empty strings to null for optional fields
       const sarData = {
         ...sarForm,
+        crossroads: sarForm.crossroads && sarForm.crossroads.trim() !== '' ? sarForm.crossroads.trim() : null,
         latitude: sarForm.latitude && sarForm.latitude.trim() !== '' ? sarForm.latitude : null,
         longitude: sarForm.longitude && sarForm.longitude.trim() !== '' ? sarForm.longitude : null,
         search_area_coordinates: sarForm.search_area_coordinates && sarForm.search_area_coordinates.trim() !== '' ? JSON.parse(sarForm.search_area_coordinates) : null,
@@ -480,6 +490,7 @@ const PersonnelDashboard = () => {
         title: '',
         description: '',
         location: '',
+        crossroads: '',
         latitude: '',
         longitude: '',
         status: 'active',
@@ -510,6 +521,7 @@ const PersonnelDashboard = () => {
       title: operation.title || '',
       description: operation.description || '',
       location: operation.location || '',
+      crossroads: operation.crossroads || '',
       latitude: operation.latitude || '',
       longitude: operation.longitude || '',
       status: operation.status || 'active',
@@ -647,32 +659,49 @@ const PersonnelDashboard = () => {
         return;
       }
 
-      const response = await createClosedArea({
-        name: areaForm.name.trim(),
-        description: (areaForm.description || '').trim(),
-        address: (areaForm.address || '').trim(),
-        latitude: lat,
-        longitude: lng,
-        radius: rad,
-        reason: (areaForm.reason || '').trim(),
-        expires_at: areaForm.expires_at && areaForm.expires_at.trim() ? areaForm.expires_at : null
-      });
-
-      if (response.data.success) {
-        setShowAreaModal(false);
-        setAreaForm({
-          name: '',
-          description: '',
-          address: '',
-          latitude: '46.1286',
-          longitude: '-112.9422',
-          radius: '500',
-          reason: '',
-          expires_at: ''
+      if (editingArea) {
+        await updateClosedArea(editingArea.id, {
+          name: areaForm.name.trim(),
+          description: (areaForm.description || '').trim(),
+          address: (areaForm.address || '').trim(),
+          crossroads: (areaForm.crossroads || '').trim(),
+          latitude: lat,
+          longitude: lng,
+          radius: rad,
+          reason: (areaForm.reason || '').trim(),
+          expires_at: areaForm.expires_at && areaForm.expires_at.trim() ? areaForm.expires_at : null
         });
-        fetchData();
-        setMapRefreshTrigger(prev => prev + 1); // Trigger map refresh
+        alert('Closed area updated successfully');
+      } else {
+        const response = await createClosedArea({
+          name: areaForm.name.trim(),
+          description: (areaForm.description || '').trim(),
+          address: (areaForm.address || '').trim(),
+          crossroads: (areaForm.crossroads || '').trim(),
+          latitude: lat,
+          longitude: lng,
+          radius: rad,
+          reason: (areaForm.reason || '').trim(),
+          expires_at: areaForm.expires_at && areaForm.expires_at.trim() ? areaForm.expires_at : null
+        });
+        if (!response.data.success) return;
+        alert('Closed area created successfully');
       }
+
+      setShowAreaModal(false);
+      setEditingArea(null);
+      setAreaForm({
+        name: '',
+        description: '',
+        address: '',
+        latitude: '46.1286',
+        longitude: '-112.9422',
+        radius: '500',
+        reason: '',
+        expires_at: ''
+      });
+      fetchData();
+      setMapRefreshTrigger(prev => prev + 1); // Trigger map refresh
     } catch (error) {
       const errorMessage = error.response?.data?.error || error.message || 'Failed to create closed area';
       alert(`Error: ${errorMessage}`);
@@ -688,6 +717,22 @@ const PersonnelDashboard = () => {
     } catch (error) {
       alert('Failed to update closed area');
     }
+  };
+
+  const handleEditArea = (area) => {
+    setEditingArea(area);
+    setAreaForm({
+      name: area.name || '',
+      description: area.description || '',
+      address: area.address || '',
+      crossroads: area.crossroads || '',
+      latitude: area.latitude ? area.latitude.toString() : '46.1286',
+      longitude: area.longitude ? area.longitude.toString() : '-112.9422',
+      radius: area.radius ? area.radius.toString() : '500',
+      reason: area.reason || '',
+      expires_at: area.expires_at ? area.expires_at.substring(0, 16) : ''
+    });
+    setShowAreaModal(true);
   };
 
   const handleDeleteArea = async (areaId) => {
@@ -843,29 +888,45 @@ const PersonnelDashboard = () => {
         return;
       }
 
-      const createFunction = routeType === 'parade' ? createParadeRoute : createDetour;
-      const response = await createFunction({
-        name: routeForm.name.trim(),
-        description: (routeForm.description || '').trim(),
-        address: (routeForm.address || '').trim(),
-        coordinates: coordinates,
-        expires_at: routeForm.expires_at && routeForm.expires_at.trim() ? routeForm.expires_at : null
-      });
-
-      if (response.data.success) {
-        setShowRouteModal(false);
-        setShowDetourModal(false);
-        setRouteForm({
-          name: '',
-          description: '',
-          address: '',
-          streets: '',
-          coordinates: '',
-          expires_at: ''
+      if (editingRoute) {
+        const updateFunction = routeType === 'parade' ? updateParadeRoute : updateDetour;
+        await updateFunction(editingRoute.id, {
+          name: routeForm.name.trim(),
+          description: (routeForm.description || '').trim(),
+          address: (routeForm.address || '').trim(),
+          crossroads: (routeForm.crossroads || '').trim(),
+          coordinates: coordinates,
+          expires_at: routeForm.expires_at && routeForm.expires_at.trim() ? routeForm.expires_at : null
         });
-        fetchData();
-        setMapRefreshTrigger(prev => prev + 1); // Trigger map refresh
+        alert(`${routeType === 'parade' ? 'Parade route' : 'Detour'} updated successfully`);
+      } else {
+        const createFunction = routeType === 'parade' ? createParadeRoute : createDetour;
+        const response = await createFunction({
+          name: routeForm.name.trim(),
+          description: (routeForm.description || '').trim(),
+          address: (routeForm.address || '').trim(),
+          crossroads: (routeForm.crossroads || '').trim(),
+          coordinates: coordinates,
+          expires_at: routeForm.expires_at && routeForm.expires_at.trim() ? routeForm.expires_at : null
+        });
+        if (!response.data.success) return;
+        alert(`${routeType === 'parade' ? 'Parade route' : 'Detour'} created successfully`);
       }
+
+      setShowRouteModal(false);
+      setShowDetourModal(false);
+      setEditingRoute(null);
+      setRouteForm({
+        name: '',
+        description: '',
+        address: '',
+        crossroads: '',
+        streets: '',
+        coordinates: '',
+        expires_at: ''
+      });
+      fetchData();
+      setMapRefreshTrigger(prev => prev + 1); // Trigger map refresh
     } catch (error) {
       const errorMessage = error.response?.data?.error || error.message || 'Failed to create route';
       alert(`Error: ${errorMessage}`);
@@ -881,6 +942,29 @@ const PersonnelDashboard = () => {
       setMapRefreshTrigger(prev => prev + 1); // Trigger map refresh
     } catch (error) {
       alert(`Failed to update ${type}`);
+    }
+  };
+
+  const handleEditRoute = (route, type) => {
+    setEditingRoute(route);
+    setRouteType(type);
+    // Format coordinates for display
+    const coordsText = Array.isArray(route.coordinates) 
+      ? route.coordinates.map(coord => `${coord[0]}, ${coord[1]}`).join('\n')
+      : '';
+    setRouteForm({
+      name: route.name || '',
+      description: route.description || '',
+      address: route.address || '',
+      crossroads: route.crossroads || '',
+      streets: '',
+      coordinates: coordsText,
+      expires_at: route.expires_at ? route.expires_at.substring(0, 16) : ''
+    });
+    if (type === 'parade') {
+      setShowRouteModal(true);
+    } else {
+      setShowDetourModal(true);
     }
   };
 
@@ -1039,27 +1123,42 @@ const PersonnelDashboard = () => {
         return;
       }
 
-      const response = await createClosedRoad({
-        name: closedRoadForm.name.trim(),
-        description: (closedRoadForm.description || '').trim(),
-        address: (closedRoadForm.address || '').trim(),
-        coordinates: coordinates,
-        expires_at: closedRoadForm.expires_at && closedRoadForm.expires_at.trim() ? closedRoadForm.expires_at : null
-      });
-
-      if (response.data.success) {
-        setShowClosedRoadModal(false);
-        setClosedRoadForm({
-          name: '',
-          description: '',
-          address: '',
-          streets: '',
-          coordinates: '',
-          expires_at: ''
+      if (editingClosedRoad) {
+        await updateClosedRoad(editingClosedRoad.id, {
+          name: closedRoadForm.name.trim(),
+          description: (closedRoadForm.description || '').trim(),
+          address: (closedRoadForm.address || '').trim(),
+          crossroads: (closedRoadForm.crossroads || '').trim(),
+          coordinates: coordinates,
+          expires_at: closedRoadForm.expires_at && closedRoadForm.expires_at.trim() ? closedRoadForm.expires_at : null
         });
-        fetchData();
-        setMapRefreshTrigger(prev => prev + 1); // Trigger map refresh
+        alert('Closed road updated successfully');
+      } else {
+        const response = await createClosedRoad({
+          name: closedRoadForm.name.trim(),
+          description: (closedRoadForm.description || '').trim(),
+          address: (closedRoadForm.address || '').trim(),
+          crossroads: (closedRoadForm.crossroads || '').trim(),
+          coordinates: coordinates,
+          expires_at: closedRoadForm.expires_at && closedRoadForm.expires_at.trim() ? closedRoadForm.expires_at : null
+        });
+        if (!response.data.success) return;
+        alert('Closed road created successfully');
       }
+
+      setShowClosedRoadModal(false);
+      setEditingClosedRoad(null);
+      setClosedRoadForm({
+        name: '',
+        description: '',
+        address: '',
+        crossroads: '',
+        streets: '',
+        coordinates: '',
+        expires_at: ''
+      });
+      fetchData();
+      setMapRefreshTrigger(prev => prev + 1); // Trigger map refresh
     } catch (error) {
       const errorMessage = error.response?.data?.error || error.message || 'Failed to create closed road';
       alert(`Error: ${errorMessage}`);
@@ -1075,6 +1174,24 @@ const PersonnelDashboard = () => {
     } catch (error) {
       alert('Failed to update closed road');
     }
+  };
+
+  const handleEditClosedRoad = (road) => {
+    setEditingClosedRoad(road);
+    // Format coordinates for display
+    const coordsText = Array.isArray(road.coordinates) 
+      ? road.coordinates.map(coord => `${coord[0]}, ${coord[1]}`).join('\n')
+      : '';
+    setClosedRoadForm({
+      name: road.name || '',
+      description: road.description || '',
+      address: road.address || '',
+      crossroads: road.crossroads || '',
+      streets: '',
+      coordinates: coordsText,
+      expires_at: road.expires_at ? road.expires_at.substring(0, 16) : ''
+    });
+    setShowClosedRoadModal(true);
   };
 
   const handleDeleteClosedRoad = async (id) => {
@@ -1267,27 +1384,27 @@ const PersonnelDashboard = () => {
                 🔍 Search & Rescue
               </button>
               <button 
-                onClick={() => setShowAreaModal(true)} 
+                onClick={() => { setEditingArea(null); setShowAreaModal(true); }} 
                 className="btn btn-success"
               >
                 Add Closed Area
               </button>
               <button 
-                onClick={() => { setRouteType('parade'); setShowRouteModal(true); }}
+                onClick={() => { setEditingRoute(null); setRouteType('parade'); setShowRouteModal(true); }}
                 className="btn btn-success"
                 style={{ backgroundColor: '#3b82f6' }}
               >
                 Add Parade Route
               </button>
               <button 
-                onClick={() => { setRouteType('detour'); setShowDetourModal(true); }}
+                onClick={() => { setEditingRoute(null); setRouteType('detour'); setShowDetourModal(true); }}
                 className="btn btn-success"
                 style={{ backgroundColor: '#f59e0b' }}
               >
                 Add Detour
               </button>
               <button 
-                onClick={() => setShowClosedRoadModal(true)}
+                onClick={() => { setEditingClosedRoad(null); setShowClosedRoadModal(true); }}
                 className="btn btn-success"
                 style={{ backgroundColor: '#dc2626' }}
               >
@@ -1348,7 +1465,14 @@ const PersonnelDashboard = () => {
                       {closedAreas.map((area) => (
                         <tr key={area.id}>
                           <td><strong>{area.name}</strong></td>
-                          <td>{area.address || '-'}</td>
+                          <td>
+                            {area.address || '-'}
+                            {area.crossroads && (
+                              <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '3px' }}>
+                                🚦 {area.crossroads}
+                              </div>
+                            )}
+                          </td>
                           <td>{area.description || '-'}</td>
                           <td style={{ fontSize: '12px' }}>
                             {area.latitude.toFixed(4)}, {area.longitude.toFixed(4)}
@@ -1365,6 +1489,13 @@ const PersonnelDashboard = () => {
                           </td>
                           <td>
                             <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                              <button
+                                onClick={() => handleEditArea(area)}
+                                className="btn btn-primary"
+                                style={{ padding: '5px 10px', fontSize: '12px' }}
+                              >
+                                Edit
+                              </button>
                               <button
                                 onClick={() => handleToggleArea(area.id, area.is_active)}
                                 className={`btn ${area.is_active ? 'btn-secondary' : 'btn-success'}`}
@@ -1412,7 +1543,14 @@ const PersonnelDashboard = () => {
                       {paradeRoutes.map((route) => (
                         <tr key={route.id}>
                           <td><strong>🎉 {route.name}</strong></td>
-                          <td>{route.address || '-'}</td>
+                          <td>
+                            {route.address || '-'}
+                            {route.crossroads && (
+                              <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '3px' }}>
+                                🚦 {route.crossroads}
+                              </div>
+                            )}
+                          </td>
                           <td>{route.description || '-'}</td>
                           <td style={{ fontSize: '12px' }}>{route.coordinates.length} points</td>
                           <td>
@@ -1425,6 +1563,13 @@ const PersonnelDashboard = () => {
                           </td>
                           <td>
                             <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                              <button
+                                onClick={() => handleEditRoute(route, 'parade')}
+                                className="btn btn-primary"
+                                style={{ padding: '5px 10px', fontSize: '12px' }}
+                              >
+                                Edit
+                              </button>
                               <button
                                 onClick={() => handleToggleRoute(route.id, route.is_active, 'parade')}
                                 className={`btn ${route.is_active ? 'btn-secondary' : 'btn-success'}`}
@@ -1472,7 +1617,14 @@ const PersonnelDashboard = () => {
                       {detours.map((detour) => (
                         <tr key={detour.id}>
                           <td><strong>🚧 {detour.name}</strong></td>
-                          <td>{detour.address || '-'}</td>
+                          <td>
+                            {detour.address || '-'}
+                            {detour.crossroads && (
+                              <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '3px' }}>
+                                🚦 {detour.crossroads}
+                              </div>
+                            )}
+                          </td>
                           <td>{detour.description || '-'}</td>
                           <td style={{ fontSize: '12px' }}>{detour.coordinates.length} points</td>
                           <td>
@@ -1485,6 +1637,13 @@ const PersonnelDashboard = () => {
                           </td>
                           <td>
                             <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                              <button
+                                onClick={() => handleEditRoute(detour, 'detour')}
+                                className="btn btn-primary"
+                                style={{ padding: '5px 10px', fontSize: '12px' }}
+                              >
+                                Edit
+                              </button>
                               <button
                                 onClick={() => handleToggleRoute(detour.id, detour.is_active, 'detour')}
                                 className={`btn ${detour.is_active ? 'btn-secondary' : 'btn-success'}`}
@@ -1547,7 +1706,14 @@ const PersonnelDashboard = () => {
                       {closedRoads.map((road) => (
                         <tr key={road.id}>
                           <td><strong>🚫 {road.name}</strong></td>
-                          <td>{road.address || '-'}</td>
+                          <td>
+                            {road.address || '-'}
+                            {road.crossroads && (
+                              <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '3px' }}>
+                                🚦 {road.crossroads}
+                              </div>
+                            )}
+                          </td>
                           <td>{road.description || '-'}</td>
                           <td style={{ fontSize: '12px' }}>{road.coordinates.length} points</td>
                           <td>
@@ -1560,6 +1726,13 @@ const PersonnelDashboard = () => {
                           </td>
                           <td>
                             <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                              <button
+                                onClick={() => handleEditClosedRoad(road)}
+                                className="btn btn-primary"
+                                style={{ padding: '5px 10px', fontSize: '12px' }}
+                              >
+                                Edit
+                              </button>
                               <button
                                 onClick={() => handleToggleClosedRoad(road.id, road.is_active)}
                                 className={`btn ${road.is_active ? 'btn-secondary' : 'btn-success'}`}
@@ -1952,7 +2125,7 @@ const PersonnelDashboard = () => {
           zIndex: 1000
         }}>
           <div className="card" style={{ maxWidth: '600px', width: '90%', maxHeight: '90vh', overflow: 'auto' }}>
-            <h2 style={{ marginBottom: '20px', color: '#f9fafb' }}>Create Closed Area</h2>
+            <h2 style={{ marginBottom: '20px', color: '#f9fafb' }}>{editingArea ? 'Edit' : 'Create'} Closed Area</h2>
             <form onSubmit={handleCreateArea}>
               <div className="form-group">
                 <label>Area Name *</label>
@@ -1998,6 +2171,19 @@ const PersonnelDashboard = () => {
                 </div>
                 <small style={{ color: '#d1d5db', marginTop: '5px', display: 'block' }}>
                   Enter an address in Deer Lodge County and click "Find Location" to automatically get coordinates, or enter coordinates manually below.
+                </small>
+              </div>
+              <div className="form-group">
+                <label>Crossroads/Intersection (Optional)</label>
+                <input
+                  type="text"
+                  className="input"
+                  value={areaForm.crossroads}
+                  onChange={(e) => setAreaForm({ ...areaForm, crossroads: e.target.value })}
+                  placeholder="e.g., Main Street & Park Avenue"
+                />
+                <small style={{ color: '#d1d5db', marginTop: '5px', display: 'block' }}>
+                  Enter the intersection or crossroads if applicable (e.g., "Main St & Park Ave")
                 </small>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
@@ -2056,12 +2242,13 @@ const PersonnelDashboard = () => {
               </div>
               <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
                 <button type="submit" className="btn btn-success" style={{ flex: 1 }}>
-                  Create Closed Area
+                  {editingArea ? 'Update Closed Area' : 'Create Closed Area'}
                 </button>
                 <button
                   type="button"
                   onClick={() => {
                     setShowAreaModal(false);
+                    setEditingArea(null);
                     setAreaForm({
                       name: '',
                       description: '',
@@ -2100,7 +2287,7 @@ const PersonnelDashboard = () => {
         }}>
           <div className="card" style={{ maxWidth: '700px', width: '90%', maxHeight: '90vh', overflow: 'auto' }}>
             <h2 style={{ marginBottom: '20px', color: '#f9fafb' }}>
-              {routeType === 'parade' ? '🎉 Create Parade Route' : '🚧 Create Detour'}
+              {editingRoute ? (routeType === 'parade' ? '🎉 Edit Parade Route' : '🚧 Edit Detour') : (routeType === 'parade' ? '🎉 Create Parade Route' : '🚧 Create Detour')}
             </h2>
             <form onSubmit={handleCreateRoute}>
               <div className="form-group">
@@ -2135,6 +2322,19 @@ const PersonnelDashboard = () => {
                 />
                 <small style={{ color: '#d1d5db', marginTop: '5px', display: 'block' }}>
                   Enter a general address or location description for this route/detour. This will be displayed on the map to help users identify the location.
+                </small>
+              </div>
+              <div className="form-group">
+                <label>Crossroads/Intersection (Optional)</label>
+                <input
+                  type="text"
+                  className="input"
+                  value={routeForm.crossroads}
+                  onChange={(e) => setRouteForm({ ...routeForm, crossroads: e.target.value })}
+                  placeholder="e.g., Main Street & Park Avenue"
+                />
+                <small style={{ color: '#d1d5db', marginTop: '5px', display: 'block' }}>
+                  Enter the intersection or crossroads if applicable (e.g., "Main St & Park Ave")
                 </small>
               </div>
               <div className="form-group">
@@ -2198,17 +2398,19 @@ const PersonnelDashboard = () => {
                     backgroundColor: routeType === 'parade' ? '#3b82f6' : '#f59e0b'
                   }}
                 >
-                  Create {routeType === 'parade' ? 'Parade Route' : 'Detour'}
+                  {editingRoute ? 'Update' : 'Create'} {routeType === 'parade' ? 'Parade Route' : 'Detour'}
                 </button>
                 <button
                   type="button"
                   onClick={() => {
                     setShowRouteModal(false);
                     setShowDetourModal(false);
+                    setEditingRoute(null);
                     setRouteForm({
                       name: '',
                       description: '',
                       address: '',
+                      crossroads: '',
                       streets: '',
                       coordinates: '',
                       expires_at: ''
@@ -2748,7 +2950,7 @@ const PersonnelDashboard = () => {
           zIndex: 1000
         }}>
           <div className="card" style={{ maxWidth: '700px', width: '90%', maxHeight: '90vh', overflow: 'auto' }}>
-            <h2 style={{ marginBottom: '20px', color: '#f9fafb' }}>🚫 Create Closed Road</h2>
+            <h2 style={{ marginBottom: '20px', color: '#f9fafb' }}>🚫 {editingClosedRoad ? 'Edit' : 'Create'} Closed Road</h2>
             <form onSubmit={handleCreateClosedRoad}>
               <div className="form-group">
                 <label>Road Name *</label>
@@ -2782,6 +2984,19 @@ const PersonnelDashboard = () => {
                 />
                 <small style={{ color: '#d1d5db', marginTop: '5px', display: 'block' }}>
                   Enter a general address or location description for this closed road. This will be displayed on the map to help users identify the location.
+                </small>
+              </div>
+              <div className="form-group">
+                <label>Crossroads/Intersection (Optional)</label>
+                <input
+                  type="text"
+                  className="input"
+                  value={closedRoadForm.crossroads}
+                  onChange={(e) => setClosedRoadForm({ ...closedRoadForm, crossroads: e.target.value })}
+                  placeholder="e.g., Main Street & Park Avenue"
+                />
+                <small style={{ color: '#d1d5db', marginTop: '5px', display: 'block' }}>
+                  Enter the intersection or crossroads if applicable (e.g., "Main St & Park Ave")
                 </small>
               </div>
               <div className="form-group">
@@ -2844,12 +3059,13 @@ const PersonnelDashboard = () => {
                     backgroundColor: '#dc2626'
                   }}
                 >
-                  Create Closed Road
+                  {editingClosedRoad ? 'Update Closed Road' : 'Create Closed Road'}
                 </button>
                 <button
                   type="button"
                   onClick={() => {
                     setShowClosedRoadModal(false);
+                    setEditingClosedRoad(null);
                     setClosedRoadForm({
                       name: '',
                       description: '',
@@ -3143,6 +3359,19 @@ const PersonnelDashboard = () => {
                 </div>
                 <small style={{ color: '#d1d5db', marginTop: '5px', display: 'block' }}>
                   Enter a location in Deer Lodge County and click "Find Coordinates" to automatically get latitude and longitude, or enter coordinates manually below. You can also create the operation with just the location text if coordinates aren't available.
+                </small>
+              </div>
+              <div className="form-group">
+                <label>Crossroads/Intersection (Optional)</label>
+                <input
+                  type="text"
+                  className="input"
+                  value={sarForm.crossroads}
+                  onChange={(e) => setSarForm({ ...sarForm, crossroads: e.target.value })}
+                  placeholder="e.g., Main Street & Park Avenue"
+                />
+                <small style={{ color: '#d1d5db', marginTop: '5px', display: 'block' }}>
+                  Enter the intersection or crossroads if applicable (e.g., "Main St & Park Ave")
                 </small>
               </div>
               <div className="form-group">

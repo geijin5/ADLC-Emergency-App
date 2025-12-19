@@ -112,6 +112,7 @@ db.serialize(() => {
     name TEXT NOT NULL,
     description TEXT,
     address TEXT,
+    crossroads TEXT,
     latitude REAL NOT NULL,
     longitude REAL NOT NULL,
     radius REAL DEFAULT 500,
@@ -127,6 +128,11 @@ db.serialize(() => {
   db.run(`ALTER TABLE closed_areas ADD COLUMN address TEXT`, (err) => {
     // Ignore error if column already exists
   });
+  
+  // Add crossroads column if it doesn't exist
+  db.run(`ALTER TABLE closed_areas ADD COLUMN crossroads TEXT`, (err) => {
+    // Ignore error if column already exists
+  });
 
   // Parade routes table
   db.run(`CREATE TABLE IF NOT EXISTS parade_routes (
@@ -134,6 +140,7 @@ db.serialize(() => {
     name TEXT NOT NULL,
     description TEXT,
     address TEXT,
+    crossroads TEXT,
     coordinates TEXT NOT NULL,
     created_by INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -146,6 +153,11 @@ db.serialize(() => {
   db.run(`ALTER TABLE parade_routes ADD COLUMN address TEXT`, (err) => {
     // Ignore error if column already exists
   });
+  
+  // Add crossroads column if it doesn't exist
+  db.run(`ALTER TABLE parade_routes ADD COLUMN crossroads TEXT`, (err) => {
+    // Ignore error if column already exists
+  });
 
   // Detours table
   db.run(`CREATE TABLE IF NOT EXISTS detours (
@@ -153,6 +165,7 @@ db.serialize(() => {
     name TEXT NOT NULL,
     description TEXT,
     address TEXT,
+    crossroads TEXT,
     coordinates TEXT NOT NULL,
     created_by INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -163,6 +176,11 @@ db.serialize(() => {
   
   // Add address column if it doesn't exist
   db.run(`ALTER TABLE detours ADD COLUMN address TEXT`, (err) => {
+    // Ignore error if column already exists
+  });
+  
+  // Add crossroads column if it doesn't exist
+  db.run(`ALTER TABLE detours ADD COLUMN crossroads TEXT`, (err) => {
     // Ignore error if column already exists
   });
 
@@ -211,6 +229,7 @@ db.serialize(() => {
     name TEXT NOT NULL,
     description TEXT,
     address TEXT,
+    crossroads TEXT,
     coordinates TEXT NOT NULL,
     created_by INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -218,6 +237,11 @@ db.serialize(() => {
     is_active INTEGER DEFAULT 1,
     FOREIGN KEY (created_by) REFERENCES users(id)
   )`);
+  
+  // Add crossroads column if it doesn't exist
+  db.run(`ALTER TABLE closed_roads ADD COLUMN crossroads TEXT`, (err) => {
+    // Ignore error if column already exists
+  });
 
   // Search and Rescue operations table
   db.run(`CREATE TABLE IF NOT EXISTS search_rescue_operations (
@@ -923,9 +947,9 @@ app.post('/api/personnel/closed-areas', authenticateToken, (req, res) => {
   }
 
   db.run(
-    `INSERT INTO closed_areas (name, description, address, latitude, longitude, radius, reason, created_by, expires_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [name, description || '', address || '', lat, lng, rad, reason || '', req.user.id, expiresAtValue],
+    `INSERT INTO closed_areas (name, description, address, crossroads, latitude, longitude, radius, reason, created_by, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [name, description || '', address || '', req.body.crossroads || '', lat, lng, rad, reason || '', req.user.id, expiresAtValue],
     function(err) {
       if (err) {
         console.error('Database error creating closed area:', err);
@@ -942,11 +966,49 @@ app.post('/api/personnel/closed-areas', authenticateToken, (req, res) => {
 
 app.put('/api/personnel/closed-areas/:id', authenticateToken, (req, res) => {
   const { id } = req.params;
-  const { is_active, expires_at } = req.body;
+  const { name, description, address, crossroads, latitude, longitude, radius, reason, is_active, expires_at } = req.body;
 
   const updates = [];
   const values = [];
 
+  if (name !== undefined) {
+    updates.push('name = ?');
+    values.push(name);
+  }
+  if (description !== undefined) {
+    updates.push('description = ?');
+    values.push(description);
+  }
+  if (address !== undefined) {
+    updates.push('address = ?');
+    values.push(address);
+  }
+  if (crossroads !== undefined) {
+    updates.push('crossroads = ?');
+    values.push(crossroads);
+  }
+  if (latitude !== undefined && longitude !== undefined) {
+    const lat = parseFloat(latitude);
+    const lng = parseFloat(longitude);
+    if (isNaN(lat) || isNaN(lng)) {
+      return res.status(400).json({ error: 'Latitude and longitude must be valid numbers' });
+    }
+    updates.push('latitude = ?');
+    updates.push('longitude = ?');
+    values.push(lat, lng);
+  }
+  if (radius !== undefined) {
+    const rad = parseFloat(radius);
+    if (isNaN(rad) || rad <= 0) {
+      return res.status(400).json({ error: 'Radius must be a positive number' });
+    }
+    updates.push('radius = ?');
+    values.push(rad);
+  }
+  if (reason !== undefined) {
+    updates.push('reason = ?');
+    values.push(reason);
+  }
   if (is_active !== undefined) {
     updates.push('is_active = ?');
     values.push(is_active ? 1 : 0);
@@ -1023,9 +1085,9 @@ app.post('/api/personnel/parade-routes', authenticateToken, (req, res) => {
   }
 
   db.run(
-    `INSERT INTO parade_routes (name, description, address, coordinates, created_by, expires_at)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [name, description || '', address || '', coordinatesJson, req.user.id, expiresAtValue],
+    `INSERT INTO parade_routes (name, description, address, crossroads, coordinates, created_by, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [name, description || '', address || '', req.body.crossroads || '', coordinatesJson, req.user.id, expiresAtValue],
     function(err) {
       if (err) {
         console.error('Database error creating parade route:', err);
@@ -1042,11 +1104,34 @@ app.post('/api/personnel/parade-routes', authenticateToken, (req, res) => {
 
 app.put('/api/personnel/parade-routes/:id', authenticateToken, (req, res) => {
   const { id } = req.params;
-  const { is_active, expires_at } = req.body;
+  const { name, description, address, crossroads, coordinates, is_active, expires_at } = req.body;
 
   const updates = [];
   const values = [];
 
+  if (name !== undefined) {
+    updates.push('name = ?');
+    values.push(name);
+  }
+  if (description !== undefined) {
+    updates.push('description = ?');
+    values.push(description);
+  }
+  if (address !== undefined) {
+    updates.push('address = ?');
+    values.push(address);
+  }
+  if (crossroads !== undefined) {
+    updates.push('crossroads = ?');
+    values.push(crossroads);
+  }
+  if (coordinates !== undefined) {
+    if (!Array.isArray(coordinates) || coordinates.length < 2) {
+      return res.status(400).json({ error: 'Coordinates must be an array with at least 2 points' });
+    }
+    updates.push('coordinates = ?');
+    values.push(JSON.stringify(coordinates));
+  }
   if (is_active !== undefined) {
     updates.push('is_active = ?');
     values.push(is_active ? 1 : 0);
@@ -1123,9 +1208,9 @@ app.post('/api/personnel/detours', authenticateToken, (req, res) => {
   }
 
   db.run(
-    `INSERT INTO detours (name, description, address, coordinates, created_by, expires_at)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [name, description || '', address || '', coordinatesJson, req.user.id, expiresAtValue],
+    `INSERT INTO detours (name, description, address, crossroads, coordinates, created_by, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [name, description || '', address || '', req.body.crossroads || '', coordinatesJson, req.user.id, expiresAtValue],
     function(err) {
       if (err) {
         console.error('Database error creating detour:', err);
@@ -1142,11 +1227,34 @@ app.post('/api/personnel/detours', authenticateToken, (req, res) => {
 
 app.put('/api/personnel/detours/:id', authenticateToken, (req, res) => {
   const { id } = req.params;
-  const { is_active, expires_at } = req.body;
+  const { name, description, address, crossroads, coordinates, is_active, expires_at } = req.body;
 
   const updates = [];
   const values = [];
 
+  if (name !== undefined) {
+    updates.push('name = ?');
+    values.push(name);
+  }
+  if (description !== undefined) {
+    updates.push('description = ?');
+    values.push(description);
+  }
+  if (address !== undefined) {
+    updates.push('address = ?');
+    values.push(address);
+  }
+  if (crossroads !== undefined) {
+    updates.push('crossroads = ?');
+    values.push(crossroads);
+  }
+  if (coordinates !== undefined) {
+    if (!Array.isArray(coordinates) || coordinates.length < 2) {
+      return res.status(400).json({ error: 'Coordinates must be an array with at least 2 points' });
+    }
+    updates.push('coordinates = ?');
+    values.push(JSON.stringify(coordinates));
+  }
   if (is_active !== undefined) {
     updates.push('is_active = ?');
     values.push(is_active ? 1 : 0);
@@ -1243,11 +1351,34 @@ app.post('/api/personnel/closed-roads', authenticateToken, (req, res) => {
 
 app.put('/api/personnel/closed-roads/:id', authenticateToken, (req, res) => {
   const { id } = req.params;
-  const { is_active, expires_at } = req.body;
+  const { name, description, address, crossroads, coordinates, is_active, expires_at } = req.body;
 
   const updates = [];
   const values = [];
 
+  if (name !== undefined) {
+    updates.push('name = ?');
+    values.push(name);
+  }
+  if (description !== undefined) {
+    updates.push('description = ?');
+    values.push(description);
+  }
+  if (address !== undefined) {
+    updates.push('address = ?');
+    values.push(address);
+  }
+  if (crossroads !== undefined) {
+    updates.push('crossroads = ?');
+    values.push(crossroads);
+  }
+  if (coordinates !== undefined) {
+    if (!Array.isArray(coordinates) || coordinates.length < 2) {
+      return res.status(400).json({ error: 'Coordinates must be an array with at least 2 points' });
+    }
+    updates.push('coordinates = ?');
+    values.push(JSON.stringify(coordinates));
+  }
   if (is_active !== undefined) {
     updates.push('is_active = ?');
     values.push(is_active ? 1 : 0);
@@ -1619,14 +1750,14 @@ app.post('/api/personnel/search-rescue', authenticateToken, (req, res) => {
 
   db.run(
     `INSERT INTO search_rescue_operations (
-      case_number, title, description, location, latitude, longitude, 
+      case_number, title, description, location, crossroads, latitude, longitude, 
       status, priority, missing_person_name, missing_person_age, 
       missing_person_description, last_seen_location, last_seen_time,
       contact_name, contact_phone, assigned_team, search_area_coordinates,
       created_by
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      caseNum, title, description || '', location, lat, lng,
+      caseNum, title, description || '', location, req.body.crossroads || '', lat, lng,
       status || 'active', priority || 'medium',
       missing_person_name || '', missing_person_age || '',
       missing_person_description || '', last_seen_location || '', lastSeenTimeValue,
@@ -1653,6 +1784,7 @@ app.put('/api/personnel/search-rescue/:id', authenticateToken, (req, res) => {
     title, 
     description, 
     location, 
+    crossroads,
     latitude, 
     longitude, 
     status, 
@@ -1684,6 +1816,10 @@ app.put('/api/personnel/search-rescue/:id', authenticateToken, (req, res) => {
   if (location !== undefined) {
     updates.push('location = ?');
     values.push(location);
+  }
+  if (crossroads !== undefined) {
+    updates.push('crossroads = ?');
+    values.push(crossroads);
   }
   // Handle latitude/longitude updates - both must be provided together or both cleared
   if (latitude !== undefined || longitude !== undefined) {
