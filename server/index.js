@@ -674,87 +674,87 @@ app.get('/api/public/alerts', (req, res) => {
   );
 });
 
-app.get('/api/public/closed-areas', (req, res) => {
+app.get('/api/public/closed-areas', async (req, res) => {
   const now = new Date().toISOString();
-  db.all(
-    `SELECT * FROM closed_areas 
-     WHERE is_active = 1 
-     AND (expires_at IS NULL OR expires_at > ?)
-     ORDER BY created_at DESC`,
-    [now],
-    (err, areas) => {
-      if (err) {
-        return res.status(500).json({ error: 'Failed to fetch closed areas' });
-      }
-      res.json(areas);
-    }
-  );
+  try {
+    const areas = await all(
+      `SELECT * FROM closed_areas 
+       WHERE is_active = ${isPostgres ? 'true' : '1'} 
+       AND (expires_at IS NULL OR expires_at > ?)
+       ORDER BY created_at DESC`,
+      [now]
+    );
+    res.json(areas);
+  } catch (err) {
+    console.error('Error fetching closed areas:', err);
+    return res.status(500).json({ error: 'Failed to fetch closed areas' });
+  }
 });
 
-app.get('/api/public/parade-routes', (req, res) => {
+app.get('/api/public/parade-routes', async (req, res) => {
   const now = new Date().toISOString();
-  db.all(
-    `SELECT * FROM parade_routes 
-     WHERE is_active = 1 
-     AND (expires_at IS NULL OR expires_at > ?)
-     ORDER BY created_at DESC`,
-    [now],
-    (err, routes) => {
-      if (err) {
-        return res.status(500).json({ error: 'Failed to fetch parade routes' });
-      }
-      // Parse coordinates JSON
-      const parsedRoutes = routes.map(route => ({
-        ...route,
-        coordinates: JSON.parse(route.coordinates)
-      }));
-      res.json(parsedRoutes);
-    }
-  );
+  try {
+    const routes = await all(
+      `SELECT * FROM parade_routes 
+       WHERE is_active = ${isPostgres ? 'true' : '1'} 
+       AND (expires_at IS NULL OR expires_at > ?)
+       ORDER BY created_at DESC`,
+      [now]
+    );
+    // Parse coordinates JSON
+    const parsedRoutes = routes.map(route => ({
+      ...route,
+      coordinates: JSON.parse(route.coordinates)
+    }));
+    res.json(parsedRoutes);
+  } catch (err) {
+    console.error('Error fetching parade routes:', err);
+    return res.status(500).json({ error: 'Failed to fetch parade routes' });
+  }
 });
 
-app.get('/api/public/detours', (req, res) => {
+app.get('/api/public/detours', async (req, res) => {
   const now = new Date().toISOString();
-  db.all(
-    `SELECT * FROM detours 
-     WHERE is_active = 1 
-     AND (expires_at IS NULL OR expires_at > ?)
-     ORDER BY created_at DESC`,
-    [now],
-    (err, detours) => {
-      if (err) {
-        return res.status(500).json({ error: 'Failed to fetch detours' });
-      }
-      // Parse coordinates JSON
-      const parsedDetours = detours.map(detour => ({
-        ...detour,
-        coordinates: JSON.parse(detour.coordinates)
-      }));
-      res.json(parsedDetours);
-    }
-  );
+  try {
+    const detours = await all(
+      `SELECT * FROM detours 
+       WHERE is_active = ${isPostgres ? 'true' : '1'} 
+       AND (expires_at IS NULL OR expires_at > ?)
+       ORDER BY created_at DESC`,
+      [now]
+    );
+    // Parse coordinates JSON
+    const parsedDetours = detours.map(detour => ({
+      ...detour,
+      coordinates: JSON.parse(detour.coordinates)
+    }));
+    res.json(parsedDetours);
+  } catch (err) {
+    console.error('Error fetching detours:', err);
+    return res.status(500).json({ error: 'Failed to fetch detours' });
+  }
 });
 
-app.get('/api/public/closed-roads', (req, res) => {
+app.get('/api/public/closed-roads', async (req, res) => {
   const now = new Date().toISOString();
-  db.all(
-    `SELECT * FROM closed_roads 
-     WHERE is_active = 1 
-     AND (expires_at IS NULL OR expires_at > ?)
-     ORDER BY created_at DESC`,
-    [now],
-    (err, roads) => {
-      if (err) {
-        return res.status(500).json({ error: 'Failed to fetch closed roads' });
-      }
-      // Parse coordinates JSON
-      const parsedRoads = roads.map(road => ({
-        ...road,
-        coordinates: JSON.parse(road.coordinates)
-      }));
-      res.json(parsedRoads);
-    }
-  );
+  try {
+    const roads = await all(
+      `SELECT * FROM closed_roads 
+       WHERE is_active = ${isPostgres ? 'true' : '1'} 
+       AND (expires_at IS NULL OR expires_at > ?)
+       ORDER BY created_at DESC`,
+      [now]
+    );
+    // Parse coordinates JSON
+    const parsedRoads = roads.map(road => ({
+      ...road,
+      coordinates: JSON.parse(road.coordinates)
+    }));
+    res.json(parsedRoads);
+  } catch (err) {
+    console.error('Error fetching closed roads:', err);
+    return res.status(500).json({ error: 'Failed to fetch closed roads' });
+  }
 });
 
 // Protected Routes (Emergency Personnel)
