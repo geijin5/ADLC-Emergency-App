@@ -1318,7 +1318,7 @@ app.post('/api/personnel/parade-routes', authenticateToken, async (req, res) => 
   }
 });
 
-app.put('/api/personnel/parade-routes/:id', authenticateToken, (req, res) => {
+app.put('/api/personnel/parade-routes/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
   const { name, description, address, crossroads, coordinates, is_active, expires_at } = req.body;
 
@@ -1441,7 +1441,7 @@ app.post('/api/personnel/detours', authenticateToken, async (req, res) => {
   }
 });
 
-app.put('/api/personnel/detours/:id', authenticateToken, (req, res) => {
+app.put('/api/personnel/detours/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
   const { name, description, address, crossroads, coordinates, is_active, expires_at } = req.body;
 
@@ -1565,7 +1565,7 @@ app.post('/api/personnel/closed-roads', authenticateToken, async (req, res) => {
   }
 });
 
-app.put('/api/personnel/closed-roads/:id', authenticateToken, (req, res) => {
+app.put('/api/personnel/closed-roads/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
   const { name, description, address, crossroads, coordinates, is_active, expires_at } = req.body;
 
@@ -1672,7 +1672,7 @@ app.get('/api/personnel/callouts', authenticateToken, async (req, res) => {
   }
 });
 
-app.post('/api/personnel/callouts', authenticateToken, (req, res) => {
+app.post('/api/personnel/callouts', authenticateToken, async (req, res) => {
   const { title, message, department_id, location, priority, expires_at } = req.body;
 
   if (!title || !message || !department_id) {
@@ -1688,22 +1688,21 @@ app.post('/api/personnel/callouts', authenticateToken, (req, res) => {
     }
   }
 
-  db.run(
-    `INSERT INTO callouts (title, message, department_id, location, priority, created_by, expires_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [title, message, department_id, location || '', priority || 'high', req.user.id, expiresAtValue],
-    function(err) {
-      if (err) {
-        console.error('Database error creating callout:', err);
-        return res.status(500).json({ error: err.message || 'Failed to create callout' });
-      }
-      res.json({ 
-        success: true, 
-        message: 'Mass callout sent successfully',
-        calloutId: this.lastID 
-      });
-    }
-  );
+  try {
+    const result = await run(
+      `INSERT INTO callouts (title, message, department_id, location, priority, created_by, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [title, message, department_id, location || '', priority || 'high', req.user.id, expiresAtValue]
+    );
+    res.json({ 
+      success: true, 
+      message: 'Mass callout sent successfully',
+      calloutId: result.lastID 
+    });
+  } catch (err) {
+    console.error('Database error creating callout:', err);
+    return res.status(500).json({ error: err.message || 'Failed to create callout' });
+  }
 });
 
 app.put('/api/personnel/callouts/:id/acknowledge', authenticateToken, async (req, res) => {
