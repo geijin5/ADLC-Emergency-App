@@ -1006,23 +1006,21 @@ app.delete('/api/personnel/users/:id', authenticateToken, async (req, res) => {
 });
 
 // Departments Management
-app.get('/api/personnel/departments', authenticateToken, (req, res) => {
+app.get('/api/personnel/departments', authenticateToken, async (req, res) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Admin access required' });
   }
 
-  db.all(
-    'SELECT * FROM departments ORDER BY name',
-    (err, departments) => {
-      if (err) {
-        return res.status(500).json({ error: 'Failed to fetch departments' });
-      }
-      res.json(departments);
-    }
-  );
+  try {
+    const departments = await all('SELECT * FROM departments ORDER BY name');
+    res.json(departments);
+  } catch (err) {
+    console.error('Error fetching departments:', err);
+    return res.status(500).json({ error: 'Failed to fetch departments' });
+  }
 });
 
-app.post('/api/personnel/departments', authenticateToken, (req, res) => {
+app.post('/api/personnel/departments', authenticateToken, async (req, res) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -1033,28 +1031,27 @@ app.post('/api/personnel/departments', authenticateToken, (req, res) => {
     return res.status(400).json({ error: 'Department name is required' });
   }
 
-  db.run(
-    `INSERT INTO departments (name, description, color)
-     VALUES (?, ?, ?)`,
-    [name, description || '', color || '#3b82f6'],
-    function(err) {
-      if (err) {
-        if (err.message.includes('UNIQUE constraint')) {
-          return res.status(400).json({ error: 'Department name already exists' });
-        }
-        console.error('Database error creating department:', err);
-        return res.status(500).json({ error: err.message || 'Failed to create department' });
-      }
-      res.json({ 
-        success: true, 
-        message: 'Department created successfully',
-        departmentId: this.lastID 
-      });
+  try {
+    const result = await run(
+      `INSERT INTO departments (name, description, color)
+       VALUES (?, ?, ?)`,
+      [name, description || '', color || '#3b82f6']
+    );
+    res.json({ 
+      success: true, 
+      message: 'Department created successfully',
+      departmentId: result.lastID 
+    });
+  } catch (err) {
+    if (err.message && (err.message.includes('UNIQUE constraint') || err.message.includes('duplicate key'))) {
+      return res.status(400).json({ error: 'Department name already exists' });
     }
-  );
+    console.error('Database error creating department:', err);
+    return res.status(500).json({ error: err.message || 'Failed to create department' });
+  }
 });
 
-app.put('/api/personnel/departments/:id', authenticateToken, (req, res) => {
+app.put('/api/personnel/departments/:id', authenticateToken, async (req, res) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -1084,59 +1081,57 @@ app.put('/api/personnel/departments/:id', authenticateToken, (req, res) => {
 
   values.push(id);
 
-  db.run(
-    `UPDATE departments SET ${updates.join(', ')} WHERE id = ?`,
-    values,
-    function(err) {
-      if (err) {
-        return res.status(500).json({ error: 'Failed to update department' });
-      }
-      res.json({ success: true, message: 'Department updated successfully' });
-    }
-  );
+  try {
+    await run(
+      `UPDATE departments SET ${updates.join(', ')} WHERE id = ?`,
+      values
+    );
+    res.json({ success: true, message: 'Department updated successfully' });
+  } catch (err) {
+    console.error('Error updating department:', err);
+    return res.status(500).json({ error: 'Failed to update department' });
+  }
 });
 
-app.delete('/api/personnel/departments/:id', authenticateToken, (req, res) => {
+app.delete('/api/personnel/departments/:id', authenticateToken, async (req, res) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Admin access required' });
   }
 
   const { id } = req.params;
 
-  // Check if department is in use
-  db.get('SELECT COUNT(*) as count FROM users WHERE department_id = ?', [id], (err, result) => {
-    if (err) {
-      return res.status(500).json({ error: 'Failed to check department usage' });
-    }
-    if (result.count > 0) {
+  try {
+    // Check if department is in use
+    const result = await get('SELECT COUNT(*) as count FROM users WHERE department_id = ?', [id]);
+    const count = result ? (isPostgres ? parseInt(result.count) : result.count) : 0;
+    if (count > 0) {
       return res.status(400).json({ error: 'Cannot delete department with assigned users' });
     }
 
-    db.run('DELETE FROM departments WHERE id = ?', [id], function(err) {
-      if (err) {
-        return res.status(500).json({ error: 'Failed to delete department' });
-      }
-      res.json({ success: true, message: 'Department deleted successfully' });
-    });
-  });
+    await run('DELETE FROM departments WHERE id = ?', [id]);
+    res.json({ success: true, message: 'Department deleted successfully' });
+  } catch (err) {
+    console.error('Error deleting department:', err);
+    return res.status(500).json({ error: 'Failed to delete department' });
+  }
 });
 
-app.get('/api/personnel/closed-areas', authenticateToken, (req, res) => {
-  db.all(
-    `SELECT ca.*, u.name as created_by_name 
-     FROM closed_areas ca
-     LEFT JOIN users u ON ca.created_by = u.id
-     ORDER BY ca.created_at DESC`,
-    (err, areas) => {
-      if (err) {
-        return res.status(500).json({ error: 'Failed to fetch closed areas' });
-      }
-      res.json(areas);
-    }
-  );
+app.get('/api/personnel/closed-areas', authenticateToken, async (req, res) => {
+  try {
+    const areas = await all(
+      `SELECT ca.*, u.name as created_by_name 
+       FROM closed_areas ca
+       LEFT JOIN users u ON ca.created_by = u.id
+       ORDER BY ca.created_at DESC`
+    );
+    res.json(areas);
+  } catch (err) {
+    console.error('Error fetching closed areas:', err);
+    return res.status(500).json({ error: 'Failed to fetch closed areas' });
+  }
 });
 
-app.post('/api/personnel/closed-areas', authenticateToken, (req, res) => {
+app.post('/api/personnel/closed-areas', authenticateToken, async (req, res) => {
   console.log('POST /api/personnel/closed-areas - Request received');
   const { name, description, address, latitude, longitude, radius, reason, expires_at } = req.body;
 
@@ -1167,22 +1162,21 @@ app.post('/api/personnel/closed-areas', authenticateToken, (req, res) => {
     }
   }
 
-  db.run(
-    `INSERT INTO closed_areas (name, description, address, crossroads, latitude, longitude, radius, reason, created_by, expires_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [name, description || '', address || '', req.body.crossroads || '', lat, lng, rad, reason || '', req.user.id, expiresAtValue],
-    function(err) {
-      if (err) {
-        console.error('Database error creating closed area:', err);
-        return res.status(500).json({ error: err.message || 'Failed to create closed area' });
-      }
-      res.json({ 
-        success: true, 
-        message: 'Closed area created successfully',
-        areaId: this.lastID 
-      });
-    }
-  );
+  try {
+    const result = await run(
+      `INSERT INTO closed_areas (name, description, address, crossroads, latitude, longitude, radius, reason, created_by, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [name, description || '', address || '', req.body.crossroads || '', lat, lng, rad, reason || '', req.user.id, expiresAtValue]
+    );
+    res.json({ 
+      success: true, 
+      message: 'Closed area created successfully',
+      areaId: result.lastID 
+    });
+  } catch (err) {
+    console.error('Database error creating closed area:', err);
+    return res.status(500).json({ error: err.message || 'Failed to create closed area' });
+  }
 });
 
 app.put('/api/personnel/closed-areas/:id', authenticateToken, (req, res) => {
@@ -1257,35 +1251,36 @@ app.put('/api/personnel/closed-areas/:id', authenticateToken, (req, res) => {
   );
 });
 
-app.delete('/api/personnel/closed-areas/:id', authenticateToken, (req, res) => {
+app.delete('/api/personnel/closed-areas/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
 
-  db.run('DELETE FROM closed_areas WHERE id = ?', [id], function(err) {
-    if (err) {
-      return res.status(500).json({ error: 'Failed to delete closed area' });
-    }
+  try {
+    await run('DELETE FROM closed_areas WHERE id = ?', [id]);
     res.json({ success: true, message: 'Closed area deleted successfully' });
-  });
+  } catch (err) {
+    console.error('Error deleting closed area:', err);
+    return res.status(500).json({ error: 'Failed to delete closed area' });
+  }
 });
 
 // Parade Routes Management
-app.get('/api/personnel/parade-routes', authenticateToken, (req, res) => {
-  db.all(
-    `SELECT pr.*, u.name as created_by_name 
-     FROM parade_routes pr
-     LEFT JOIN users u ON pr.created_by = u.id
-     ORDER BY pr.created_at DESC`,
-    (err, routes) => {
-      if (err) {
-        return res.status(500).json({ error: 'Failed to fetch parade routes' });
-      }
-      const parsedRoutes = routes.map(route => ({
-        ...route,
-        coordinates: JSON.parse(route.coordinates)
-      }));
-      res.json(parsedRoutes);
-    }
-  );
+app.get('/api/personnel/parade-routes', authenticateToken, async (req, res) => {
+  try {
+    const routes = await all(
+      `SELECT pr.*, u.name as created_by_name 
+       FROM parade_routes pr
+       LEFT JOIN users u ON pr.created_by = u.id
+       ORDER BY pr.created_at DESC`
+    );
+    const parsedRoutes = routes.map(route => ({
+      ...route,
+      coordinates: JSON.parse(route.coordinates)
+    }));
+    res.json(parsedRoutes);
+  } catch (err) {
+    console.error('Error fetching parade routes:', err);
+    return res.status(500).json({ error: 'Failed to fetch parade routes' });
+  }
 });
 
 app.post('/api/personnel/parade-routes', authenticateToken, (req, res) => {
@@ -1392,23 +1387,23 @@ app.delete('/api/personnel/parade-routes/:id', authenticateToken, (req, res) => 
 });
 
 // Detours Management
-app.get('/api/personnel/detours', authenticateToken, (req, res) => {
-  db.all(
-    `SELECT d.*, u.name as created_by_name 
-     FROM detours d
-     LEFT JOIN users u ON d.created_by = u.id
-     ORDER BY d.created_at DESC`,
-    (err, detours) => {
-      if (err) {
-        return res.status(500).json({ error: 'Failed to fetch detours' });
-      }
-      const parsedDetours = detours.map(detour => ({
-        ...detour,
-        coordinates: JSON.parse(detour.coordinates)
-      }));
-      res.json(parsedDetours);
-    }
-  );
+app.get('/api/personnel/detours', authenticateToken, async (req, res) => {
+  try {
+    const detours = await all(
+      `SELECT d.*, u.name as created_by_name 
+       FROM detours d
+       LEFT JOIN users u ON d.created_by = u.id
+       ORDER BY d.created_at DESC`
+    );
+    const parsedDetours = detours.map(detour => ({
+      ...detour,
+      coordinates: JSON.parse(detour.coordinates)
+    }));
+    res.json(parsedDetours);
+  } catch (err) {
+    console.error('Error fetching detours:', err);
+    return res.status(500).json({ error: 'Failed to fetch detours' });
+  }
 });
 
 app.post('/api/personnel/detours', authenticateToken, (req, res) => {
@@ -1515,23 +1510,23 @@ app.delete('/api/personnel/detours/:id', authenticateToken, (req, res) => {
 });
 
 // Closed Roads Management
-app.get('/api/personnel/closed-roads', authenticateToken, (req, res) => {
-  db.all(
-    `SELECT cr.*, u.name as created_by_name 
-     FROM closed_roads cr
-     LEFT JOIN users u ON cr.created_by = u.id
-     ORDER BY cr.created_at DESC`,
-    (err, roads) => {
-      if (err) {
-        return res.status(500).json({ error: 'Failed to fetch closed roads' });
-      }
-      const parsedRoads = roads.map(road => ({
-        ...road,
-        coordinates: JSON.parse(road.coordinates)
-      }));
-      res.json(parsedRoads);
-    }
-  );
+app.get('/api/personnel/closed-roads', authenticateToken, async (req, res) => {
+  try {
+    const roads = await all(
+      `SELECT cr.*, u.name as created_by_name 
+       FROM closed_roads cr
+       LEFT JOIN users u ON cr.created_by = u.id
+       ORDER BY cr.created_at DESC`
+    );
+    const parsedRoads = roads.map(road => ({
+      ...road,
+      coordinates: JSON.parse(road.coordinates)
+    }));
+    res.json(parsedRoads);
+  } catch (err) {
+    console.error('Error fetching closed roads:', err);
+    return res.status(500).json({ error: 'Failed to fetch closed roads' });
+  }
 });
 
 app.post('/api/personnel/closed-roads', authenticateToken, (req, res) => {
@@ -1650,29 +1645,30 @@ app.delete('/api/personnel/closed-roads/:id', authenticateToken, (req, res) => {
 });
 
 // Callouts Management (MCI Mass Callouts)
-app.get('/api/personnel/callouts', authenticateToken, (req, res) => {
+app.get('/api/personnel/callouts', authenticateToken, async (req, res) => {
   // Get callouts for user's department or all if admin
   const query = req.user.role === 'admin' 
     ? `SELECT c.*, d.name as department_name, d.color as department_color, u.name as created_by_name
        FROM callouts c
        LEFT JOIN departments d ON c.department_id = d.id
        LEFT JOIN users u ON c.created_by = u.id
-       WHERE c.is_active = 1
+       WHERE c.is_active = ${isPostgres ? 'true' : '1'}
        ORDER BY c.created_at DESC`
     : `SELECT c.*, d.name as department_name, d.color as department_color, u.name as created_by_name
        FROM callouts c
        LEFT JOIN departments d ON c.department_id = d.id
        LEFT JOIN users u ON c.created_by = u.id
-       WHERE c.is_active = 1 
+       WHERE c.is_active = ${isPostgres ? 'true' : '1'} 
        AND c.department_id = (SELECT department_id FROM users WHERE id = ?)
        ORDER BY c.created_at DESC`;
 
-  db.all(query, req.user.role === 'admin' ? [] : [req.user.id], (err, callouts) => {
-    if (err) {
-      return res.status(500).json({ error: 'Failed to fetch callouts' });
-    }
+  try {
+    const callouts = await all(query, req.user.role === 'admin' ? [] : [req.user.id]);
     res.json(callouts);
-  });
+  } catch (err) {
+    console.error('Error fetching callouts:', err);
+    return res.status(500).json({ error: 'Failed to fetch callouts' });
+  }
 });
 
 app.post('/api/personnel/callouts', authenticateToken, (req, res) => {
@@ -1862,44 +1858,44 @@ app.post('/api/personnel/chat/messages', authenticateToken, (req, res) => {
 });
 
 // Search and Rescue Operations Routes
-app.get('/api/personnel/search-rescue', authenticateToken, (req, res) => {
-  db.all(
-    `SELECT sr.*, u.name as created_by_name 
-     FROM search_rescue_operations sr
-     LEFT JOIN users u ON sr.created_by = u.id
-     ORDER BY sr.created_at DESC`,
-    (err, operations) => {
-      if (err) {
-        return res.status(500).json({ error: 'Failed to fetch search and rescue operations' });
-      }
-      const parsedOperations = operations.map(op => ({
-        ...op,
-        search_area_coordinates: op.search_area_coordinates ? JSON.parse(op.search_area_coordinates) : null
-      }));
-      res.json(parsedOperations);
-    }
-  );
+app.get('/api/personnel/search-rescue', authenticateToken, async (req, res) => {
+  try {
+    const operations = await all(
+      `SELECT sr.*, u.name as created_by_name 
+       FROM search_rescue_operations sr
+       LEFT JOIN users u ON sr.created_by = u.id
+       ORDER BY sr.created_at DESC`
+    );
+    const parsedOperations = operations.map(op => ({
+      ...op,
+      search_area_coordinates: op.search_area_coordinates ? JSON.parse(op.search_area_coordinates) : null
+    }));
+    res.json(parsedOperations);
+  } catch (err) {
+    console.error('Error fetching search and rescue operations:', err);
+    return res.status(500).json({ error: 'Failed to fetch search and rescue operations' });
+  }
 });
 
-app.get('/api/public/search-rescue', (req, res) => {
+app.get('/api/public/search-rescue', async (req, res) => {
   const now = new Date().toISOString();
-  db.all(
-    `SELECT sr.* 
-     FROM search_rescue_operations sr
-     WHERE sr.is_active = 1 
-     AND sr.status IN ('active', 'in_progress')
-     ORDER BY sr.created_at DESC`,
-    (err, operations) => {
-      if (err) {
-        return res.status(500).json({ error: 'Failed to fetch search and rescue operations' });
-      }
-      const parsedOperations = operations.map(op => ({
-        ...op,
-        search_area_coordinates: op.search_area_coordinates ? JSON.parse(op.search_area_coordinates) : null
-      }));
-      res.json(parsedOperations);
-    }
-  );
+  try {
+    const operations = await all(
+      `SELECT sr.* 
+       FROM search_rescue_operations sr
+       WHERE sr.is_active = ${isPostgres ? 'true' : '1'} 
+       AND sr.status IN ('active', 'in_progress')
+       ORDER BY sr.created_at DESC`
+    );
+    const parsedOperations = operations.map(op => ({
+      ...op,
+      search_area_coordinates: op.search_area_coordinates ? JSON.parse(op.search_area_coordinates) : null
+    }));
+    res.json(parsedOperations);
+  } catch (err) {
+    console.error('Error fetching search and rescue operations:', err);
+    return res.status(500).json({ error: 'Failed to fetch search and rescue operations' });
+  }
 });
 
 app.post('/api/personnel/search-rescue', authenticateToken, (req, res) => {
