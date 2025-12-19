@@ -945,11 +945,11 @@ app.put('/api/personnel/users/:id', authenticateToken, async (req, res) => {
   const updates = [];
   const values = [];
 
-  if (role) {
+  if (role !== undefined) {
     updates.push('role = ?');
     values.push(role);
   }
-  if (name) {
+  if (name !== undefined) {
     updates.push('name = ?');
     values.push(name);
   }
@@ -958,6 +958,7 @@ app.put('/api/personnel/users/:id', authenticateToken, async (req, res) => {
     values.push(department_id || null);
   }
   if (password) {
+    // Only update password if provided (not empty string)
     updates.push('password = ?');
     values.push(bcrypt.hashSync(password, 10));
   }
