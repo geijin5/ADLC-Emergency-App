@@ -284,7 +284,7 @@ const MapView = ({ refreshTrigger }) => {
               scrollWheelZoom={true}
               key={`${mapCenter[0]}-${mapCenter[1]}-${mapZoom}-${mapType}`}
               maxBounds={DEER_LODGE_COUNTY_BOUNDS}
-              maxBoundsViscosity={1.0}
+              maxBoundsViscosity={0.5}
               minZoom={9}
               maxZoom={18}
             >
