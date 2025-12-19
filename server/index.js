@@ -663,21 +663,21 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // Public Routes
-app.get('/api/public/alerts', (req, res) => {
+app.get('/api/public/alerts', async (req, res) => {
   const now = new Date().toISOString();
-  db.all(
-    `SELECT * FROM public_alerts 
-     WHERE expires_at IS NULL OR expires_at > ?
-     ORDER BY created_at DESC
-     LIMIT 20`,
-    [now],
-    (err, alerts) => {
-      if (err) {
-        return res.status(500).json({ error: 'Failed to fetch alerts' });
-      }
-      res.json(alerts);
-    }
-  );
+  try {
+    const alerts = await all(
+      `SELECT * FROM public_alerts 
+       WHERE expires_at IS NULL OR expires_at > ?
+       ORDER BY created_at DESC
+       LIMIT 20`,
+      [now]
+    );
+    res.json(alerts);
+  } catch (err) {
+    console.error('Error fetching alerts:', err);
+    return res.status(500).json({ error: 'Failed to fetch alerts' });
+  }
 });
 
 app.get('/api/public/closed-areas', async (req, res) => {
@@ -765,7 +765,7 @@ app.get('/api/public/closed-roads', async (req, res) => {
 
 // Protected Routes (Emergency Personnel)
 
-app.post('/api/personnel/alerts', authenticateToken, (req, res) => {
+app.post('/api/personnel/alerts', authenticateToken, async (req, res) => {
   const { title, message, severity, expires_at, send_push } = req.body;
 
   if (!title || !message) {
@@ -781,29 +781,28 @@ app.post('/api/personnel/alerts', authenticateToken, (req, res) => {
     }
   }
 
-  db.run(
-    `INSERT INTO public_alerts (title, message, severity, created_by, expires_at)
-     VALUES (?, ?, ?, ?, ?)`,
-    [title, message, severity || 'info', req.user.id, expiresAtValue],
-    function(err) {
-      if (err) {
-        console.error('Database error creating alert:', err);
-        return res.status(500).json({ error: err.message || 'Failed to create alert' });
-      }
-      const alertId = this.lastID;
-      
-      // Send push notifications if requested
-      if (send_push) {
-        sendPushNotificationToAll(title, message, severity || 'info');
-      }
-      
-      res.json({ 
-        success: true, 
-        message: 'Alert created successfully',
-        alertId: alertId 
-      });
+  try {
+    const result = await run(
+      `INSERT INTO public_alerts (title, message, severity, created_by, expires_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      [title, message, severity || 'info', req.user.id, expiresAtValue]
+    );
+    const alertId = result.lastID;
+    
+    // Send push notifications if requested
+    if (send_push) {
+      sendPushNotificationToAll(title, message, severity || 'info');
     }
-  );
+    
+    res.json({ 
+      success: true, 
+      message: 'Alert created successfully',
+      alertId: alertId 
+    });
+  } catch (err) {
+    console.error('Database error creating alert:', err);
+    return res.status(500).json({ error: err.message || 'Failed to create alert' });
+  }
 });
 
 // Helper function to send push notification to all subscribers
