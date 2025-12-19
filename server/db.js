@@ -15,9 +15,29 @@ function initDatabase() {
     const { Pool } = require('pg');
     db = new Pool({
       connectionString: DATABASE_URL,
-      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+      // Connection pool settings to prevent connection termination issues
+      max: 10, // Maximum number of clients in the pool
+      idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
+      connectionTimeoutMillis: 10000, // Return an error after 10 seconds if connection could not be established
+      // Handle connection errors gracefully
+      allowExitOnIdle: false
     });
-    console.log('✅ PostgreSQL database connection established');
+    
+    // Handle connection errors
+    db.on('error', (err) => {
+      console.error('Unexpected PostgreSQL pool error:', err);
+      // Don't exit - let the pool handle reconnection
+    });
+    
+    // Test the connection
+    db.query('SELECT NOW()', (err) => {
+      if (err) {
+        console.error('PostgreSQL connection test failed:', err.message);
+      } else {
+        console.log('✅ PostgreSQL database connection established');
+      }
+    });
   } else {
     // Use SQLite in development
     dbType = 'sqlite';

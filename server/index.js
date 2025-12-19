@@ -21,7 +21,13 @@ const { db, dbType } = initDatabase();
 const isPostgres = dbType === 'postgres';
 
 // Initialize database tables
+// Add a small delay for PostgreSQL to fully establish connection
 (async () => {
+  // Give PostgreSQL a moment to establish connection pool
+  if (isPostgres) {
+    await new Promise(resolve => setTimeout(resolve, 500));
+  }
+  
   await serialize(async () => {
   // Departments table
   const deptTableSQL = isPostgres 
