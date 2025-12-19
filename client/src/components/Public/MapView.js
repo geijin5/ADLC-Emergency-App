@@ -462,11 +462,27 @@ const MapView = ({ refreshTrigger }) => {
 
               {/* Search and Rescue Operations */}
               {searchRescueOps.map((op) => {
+                // Determine color based on status and priority
+                const getMarkerColor = () => {
+                  if (op.status === 'training') {
+                    return '#3b82f6'; // Blue for training
+                  } else if (op.priority === 'critical') {
+                    return '#dc2626'; // Red for critical
+                  } else if (op.priority === 'high') {
+                    return '#f59e0b'; // Orange for high
+                  } else {
+                    return '#059669'; // Green for medium/low
+                  }
+                };
+                
+                const markerColor = getMarkerColor();
+                const iconEmoji = op.status === 'training' ? '🎓' : '🔍';
+                
                 // Create a custom icon for SAR operations
                 const sarIcon = L.divIcon({
                   className: 'sar-marker',
                   html: `<div style="
-                    background-color: ${op.priority === 'critical' ? '#dc2626' : op.priority === 'high' ? '#f59e0b' : '#059669'};
+                    background-color: ${markerColor};
                     width: 30px;
                     height: 30px;
                     border-radius: 50% 50% 50% 0;
@@ -482,7 +498,7 @@ const MapView = ({ refreshTrigger }) => {
                       color: white;
                       font-size: 18px;
                       font-weight: bold;
-                    ">🔍</span>
+                    ">${iconEmoji}</span>
                   </div>`,
                   iconSize: [30, 30],
                   iconAnchor: [15, 30],
@@ -496,9 +512,23 @@ const MapView = ({ refreshTrigger }) => {
                       <Marker position={[op.latitude, op.longitude]} icon={sarIcon}>
                         <Popup>
                           <div>
-                            <h3 style={{ margin: '0 0 10px 0', color: op.priority === 'critical' ? '#dc2626' : op.priority === 'high' ? '#f59e0b' : '#059669' }}>
-                              🔍 {op.case_number || `SAR-${op.id}`}: {op.title}
+                            <h3 style={{ margin: '0 0 10px 0', color: markerColor }}>
+                              {op.status === 'training' ? '🎓' : '🔍'} {op.case_number || `SAR-${op.id}`}: {op.title}
                             </h3>
+                            {op.status === 'training' && (
+                              <p style={{ 
+                                margin: '0 0 10px 0', 
+                                padding: '5px 10px',
+                                backgroundColor: '#3b82f6',
+                                color: 'white',
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                fontWeight: 'bold',
+                                display: 'inline-block'
+                              }}>
+                                🎓 TRAINING OPERATION
+                              </p>
+                            )}
                             <p style={{ margin: '5px 0', fontWeight: '600', color: '#f9fafb' }}>
                               📍 {op.location}
                             </p>
@@ -520,16 +550,18 @@ const MapView = ({ refreshTrigger }) => {
                               </p>
                             )}
                             <p style={{ margin: '5px 0', fontSize: '12px', color: '#d1d5db' }}>
-                              <strong>Status:</strong> {op.status || 'active'} | <strong>Priority:</strong> {op.priority || 'medium'}
+                              <strong>Status:</strong> {op.status === 'training' ? '🎓 Training' : op.status || 'active'} | <strong>Priority:</strong> {op.priority || 'medium'}
                             </p>
                             {op.assigned_team && (
                               <p style={{ margin: '5px 0', fontSize: '12px', color: '#d1d5db' }}>
                                 <strong>Team:</strong> {op.assigned_team}
                               </p>
                             )}
-                            <p style={{ margin: '10px 0 0 0', fontSize: '11px', color: '#9ca3af', fontStyle: 'italic' }}>
-                              If you have information, call 911
-                            </p>
+                            {op.status !== 'training' && (
+                              <p style={{ margin: '10px 0 0 0', fontSize: '11px', color: '#9ca3af', fontStyle: 'italic' }}>
+                                If you have information, call 911
+                              </p>
+                            )}
                           </div>
                         </Popup>
                       </Marker>
@@ -539,28 +571,42 @@ const MapView = ({ refreshTrigger }) => {
                       <Polygon
                         positions={op.search_area_coordinates}
                         pathOptions={{
-                          color: op.priority === 'critical' ? '#dc2626' : op.priority === 'high' ? '#f59e0b' : '#059669',
-                          fillColor: op.priority === 'critical' ? '#dc2626' : op.priority === 'high' ? '#f59e0b' : '#059669',
-                          fillOpacity: 0.2,
+                          color: markerColor,
+                          fillColor: markerColor,
+                          fillOpacity: op.status === 'training' ? 0.15 : 0.2,
                           weight: 3,
-                          dashArray: '10, 5',
+                          dashArray: op.status === 'training' ? '5, 5' : '10, 5',
                           interactive: true,
                           bubblingMouseEvents: true
                         }}
                         eventHandlers={{
                           mouseover: (e) => {
-                            e.target.setStyle({ fillOpacity: 0.3, weight: 4 });
+                            e.target.setStyle({ fillOpacity: op.status === 'training' ? 0.25 : 0.3, weight: 4 });
                           },
                           mouseout: (e) => {
-                            e.target.setStyle({ fillOpacity: 0.2, weight: 3 });
+                            e.target.setStyle({ fillOpacity: op.status === 'training' ? 0.15 : 0.2, weight: 3 });
                           }
                         }}
                       >
                         <Popup>
                           <div>
-                            <h3 style={{ margin: '0 0 10px 0', color: op.priority === 'critical' ? '#dc2626' : op.priority === 'high' ? '#f59e0b' : '#059669' }}>
-                              🔍 Search Area: {op.title}
+                            <h3 style={{ margin: '0 0 10px 0', color: markerColor }}>
+                              {op.status === 'training' ? '🎓' : '🔍'} Search Area: {op.title}
                             </h3>
+                            {op.status === 'training' && (
+                              <p style={{ 
+                                margin: '0 0 10px 0', 
+                                padding: '5px 10px',
+                                backgroundColor: '#3b82f6',
+                                color: 'white',
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                fontWeight: 'bold',
+                                display: 'inline-block'
+                              }}>
+                                🎓 TRAINING OPERATION
+                              </p>
+                            )}
                             <p style={{ margin: '5px 0', color: '#d1d5db' }}>
                               {op.case_number || `SAR-${op.id}`}
                             </p>

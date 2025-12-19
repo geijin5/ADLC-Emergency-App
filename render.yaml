@@ -13,4 +13,14 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: adlc-emergency-db
+          property: connectionString
+
+databases:
+  - name: adlc-emergency-db
+    databaseName: adlc_emergency
+    user: adlc_emergency_user
+    plan: free
 

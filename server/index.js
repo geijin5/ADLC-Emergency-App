@@ -1,12 +1,12 @@
 const express = require('express');
 const cors = require('cors');
-const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const path = require('path');
 const fs = require('fs');
 const webpush = require('web-push');
 const { execSync } = require('child_process');
+const { initDatabase, run, get, all, serialize, convertSQL, insertOrIgnore, getDbType } = require('./db');
 require('dotenv').config();
 
 const app = express();
@@ -17,310 +17,533 @@ app.use(cors());
 app.use(express.json());
 
 // Initialize database
-const dbPath = path.join(__dirname, 'emergency.db');
-console.log('Database path:', dbPath);
-const db = new sqlite3.Database(dbPath, (err) => {
-  if (err) {
-    console.error('Error opening database:', err);
-  } else {
-    console.log('✅ Database connection established');
-  }
-});
+const { db, dbType } = initDatabase();
+const isPostgres = dbType === 'postgres';
 
 // Initialize database tables
-db.serialize(() => {
+serialize(async () => {
   // Departments table
-  db.run(`CREATE TABLE IF NOT EXISTS departments (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT UNIQUE NOT NULL,
-    description TEXT,
-    color TEXT DEFAULT '#3b82f6',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`);
+  const deptTableSQL = isPostgres 
+    ? `CREATE TABLE IF NOT EXISTS departments (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(255) UNIQUE NOT NULL,
+      description TEXT,
+      color VARCHAR(50) DEFAULT '#3b82f6',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`
+    : `CREATE TABLE IF NOT EXISTS departments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      description TEXT,
+      color TEXT DEFAULT '#3b82f6',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`;
+  await run(deptTableSQL);
 
   // Emergency personnel users table
-  db.run(`CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT UNIQUE NOT NULL,
-    password TEXT NOT NULL,
-    role TEXT NOT NULL,
-    name TEXT NOT NULL,
-    department_id INTEGER,
-    permissions TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (department_id) REFERENCES departments(id)
-  )`);
+  const usersTableSQL = isPostgres
+    ? `CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      username VARCHAR(255) UNIQUE NOT NULL,
+      password VARCHAR(255) NOT NULL,
+      role VARCHAR(50) NOT NULL,
+      name VARCHAR(255) NOT NULL,
+      department_id INTEGER,
+      permissions TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (department_id) REFERENCES departments(id)
+    )`
+    : `CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL,
+      role TEXT NOT NULL,
+      name TEXT NOT NULL,
+      department_id INTEGER,
+      permissions TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (department_id) REFERENCES departments(id)
+    )`;
+  await run(usersTableSQL);
   
   // Add department_id column if it doesn't exist
-  db.run(`ALTER TABLE users ADD COLUMN department_id INTEGER`, (err) => {
+  try {
+    await run(`ALTER TABLE users ADD COLUMN department_id INTEGER`);
+  } catch (err) {
     // Ignore error if column already exists
-  });
+    if (!err.message.includes('duplicate column') && !err.message.includes('already exists')) {
+      console.error('Error adding department_id column:', err.message);
+    }
+  }
   
   // Add permissions column if it doesn't exist
-  db.run(`ALTER TABLE users ADD COLUMN permissions TEXT`, (err) => {
+  try {
+    await run(`ALTER TABLE users ADD COLUMN permissions TEXT`);
+  } catch (err) {
     // Ignore error if column already exists
-  });
+    if (!err.message.includes('duplicate column') && !err.message.includes('already exists')) {
+      console.error('Error adding permissions column:', err.message);
+    }
+  }
 
   // Emergency reports table (public submissions)
-  db.run(`CREATE TABLE IF NOT EXISTS emergency_reports (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    type TEXT NOT NULL,
-    location TEXT NOT NULL,
-    description TEXT,
-    reporter_name TEXT,
-    reporter_phone TEXT,
-    status TEXT DEFAULT 'pending',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    assigned_to INTEGER,
-    department_id INTEGER,
-    FOREIGN KEY (assigned_to) REFERENCES users(id),
-    FOREIGN KEY (department_id) REFERENCES departments(id)
-  )`);
+  const reportsTableSQL = isPostgres
+    ? `CREATE TABLE IF NOT EXISTS emergency_reports (
+      id SERIAL PRIMARY KEY,
+      type VARCHAR(100) NOT NULL,
+      location VARCHAR(255) NOT NULL,
+      description TEXT,
+      reporter_name VARCHAR(255),
+      reporter_phone VARCHAR(50),
+      status VARCHAR(50) DEFAULT 'pending',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      assigned_to INTEGER,
+      department_id INTEGER,
+      FOREIGN KEY (assigned_to) REFERENCES users(id),
+      FOREIGN KEY (department_id) REFERENCES departments(id)
+    )`
+    : `CREATE TABLE IF NOT EXISTS emergency_reports (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL,
+      location TEXT NOT NULL,
+      description TEXT,
+      reporter_name TEXT,
+      reporter_phone TEXT,
+      status TEXT DEFAULT 'pending',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      assigned_to INTEGER,
+      department_id INTEGER,
+      FOREIGN KEY (assigned_to) REFERENCES users(id),
+      FOREIGN KEY (department_id) REFERENCES departments(id)
+    )`;
+  await run(reportsTableSQL);
   
   // Add department_id column if it doesn't exist
-  db.run(`ALTER TABLE emergency_reports ADD COLUMN department_id INTEGER`, (err) => {
-    // Ignore error if column already exists
-  });
+  try {
+    await run(`ALTER TABLE emergency_reports ADD COLUMN department_id INTEGER`);
+  } catch (err) {
+    if (!err.message.includes('duplicate column') && !err.message.includes('already exists')) {
+      console.error('Error adding department_id column to emergency_reports:', err.message);
+    }
+  }
   
   // Create default departments
-  db.run(`INSERT OR IGNORE INTO departments (name, description, color) 
-    VALUES ('Fire', 'Fire Department', '#dc2626')`);
-  db.run(`INSERT OR IGNORE INTO departments (name, description, color) 
-    VALUES ('Police', 'Police Department', '#3b82f6')`);
-  db.run(`INSERT OR IGNORE INTO departments (name, description, color) 
-    VALUES ('EMS', 'Emergency Medical Services', '#10b981')`);
-  db.run(`INSERT OR IGNORE INTO departments (name, description, color) 
-    VALUES ('Dispatch', 'Dispatch Center', '#f59e0b')`);
-  db.run(`INSERT OR IGNORE INTO departments (name, description, color) 
-    VALUES ('Search and Rescue', 'Search and Rescue Team', '#059669')`);
+  const defaultDepts = [
+    { name: 'Fire', description: 'Fire Department', color: '#dc2626' },
+    { name: 'Police', description: 'Police Department', color: '#3b82f6' },
+    { name: 'EMS', description: 'Emergency Medical Services', color: '#10b981' },
+    { name: 'Dispatch', description: 'Dispatch Center', color: '#f59e0b' },
+    { name: 'Search and Rescue', description: 'Search and Rescue Team', color: '#059669' }
+  ];
+  
+  for (const dept of defaultDepts) {
+    if (isPostgres) {
+      await run(`INSERT INTO departments (name, description, color) 
+        VALUES ($1, $2, $3) ON CONFLICT (name) DO NOTHING`, [dept.name, dept.description, dept.color]);
+    } else {
+      await run(`INSERT OR IGNORE INTO departments (name, description, color) 
+        VALUES (?, ?, ?)`, [dept.name, dept.description, dept.color]);
+    }
+  }
 
   // Public alerts table
-  db.run(`CREATE TABLE IF NOT EXISTS public_alerts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT NOT NULL,
-    message TEXT NOT NULL,
-    severity TEXT DEFAULT 'info',
-    created_by INTEGER,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    expires_at DATETIME,
-    FOREIGN KEY (created_by) REFERENCES users(id)
-  )`);
+  const alertsTableSQL = isPostgres
+    ? `CREATE TABLE IF NOT EXISTS public_alerts (
+      id SERIAL PRIMARY KEY,
+      title VARCHAR(255) NOT NULL,
+      message TEXT NOT NULL,
+      severity VARCHAR(50) DEFAULT 'info',
+      created_by INTEGER,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      expires_at TIMESTAMP,
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    )`
+    : `CREATE TABLE IF NOT EXISTS public_alerts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      severity TEXT DEFAULT 'info',
+      created_by INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      expires_at DATETIME,
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    )`;
+  await run(alertsTableSQL);
 
   // Closed areas table
-  db.run(`CREATE TABLE IF NOT EXISTS closed_areas (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    description TEXT,
-    address TEXT,
-    crossroads TEXT,
-    latitude REAL NOT NULL,
-    longitude REAL NOT NULL,
-    radius REAL DEFAULT 500,
-    reason TEXT,
-    created_by INTEGER,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    expires_at DATETIME,
-    is_active INTEGER DEFAULT 1,
-    FOREIGN KEY (created_by) REFERENCES users(id)
-  )`);
+  const closedAreasTableSQL = isPostgres
+    ? `CREATE TABLE IF NOT EXISTS closed_areas (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      description TEXT,
+      address VARCHAR(255),
+      crossroads VARCHAR(255),
+      latitude DOUBLE PRECISION NOT NULL,
+      longitude DOUBLE PRECISION NOT NULL,
+      radius DOUBLE PRECISION DEFAULT 500,
+      reason TEXT,
+      created_by INTEGER,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      expires_at TIMESTAMP,
+      is_active BOOLEAN DEFAULT true,
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    )`
+    : `CREATE TABLE IF NOT EXISTS closed_areas (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT,
+      address TEXT,
+      crossroads TEXT,
+      latitude REAL NOT NULL,
+      longitude REAL NOT NULL,
+      radius REAL DEFAULT 500,
+      reason TEXT,
+      created_by INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      expires_at DATETIME,
+      is_active INTEGER DEFAULT 1,
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    )`;
+  await run(closedAreasTableSQL);
   
   // Add address column if it doesn't exist (for existing databases)
-  db.run(`ALTER TABLE closed_areas ADD COLUMN address TEXT`, (err) => {
-    // Ignore error if column already exists
-  });
+  try {
+    await run(`ALTER TABLE closed_areas ADD COLUMN address ${isPostgres ? 'VARCHAR(255)' : 'TEXT'}`);
+  } catch (err) {
+    if (!err.message.includes('duplicate column') && !err.message.includes('already exists')) {
+      console.error('Error adding address column to closed_areas:', err.message);
+    }
+  }
   
   // Add crossroads column if it doesn't exist
-  db.run(`ALTER TABLE closed_areas ADD COLUMN crossroads TEXT`, (err) => {
-    // Ignore error if column already exists
-  });
+  try {
+    await run(`ALTER TABLE closed_areas ADD COLUMN crossroads ${isPostgres ? 'VARCHAR(255)' : 'TEXT'}`);
+  } catch (err) {
+    if (!err.message.includes('duplicate column') && !err.message.includes('already exists')) {
+      console.error('Error adding crossroads column to closed_areas:', err.message);
+    }
+  }
 
   // Parade routes table
-  db.run(`CREATE TABLE IF NOT EXISTS parade_routes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    description TEXT,
-    address TEXT,
-    crossroads TEXT,
-    coordinates TEXT NOT NULL,
-    created_by INTEGER,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    expires_at DATETIME,
-    is_active INTEGER DEFAULT 1,
-    FOREIGN KEY (created_by) REFERENCES users(id)
-  )`);
+  const paradeRoutesTableSQL = isPostgres
+    ? `CREATE TABLE IF NOT EXISTS parade_routes (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      description TEXT,
+      address VARCHAR(255),
+      crossroads VARCHAR(255),
+      coordinates TEXT NOT NULL,
+      created_by INTEGER,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      expires_at TIMESTAMP,
+      is_active BOOLEAN DEFAULT true,
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    )`
+    : `CREATE TABLE IF NOT EXISTS parade_routes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT,
+      address TEXT,
+      crossroads TEXT,
+      coordinates TEXT NOT NULL,
+      created_by INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      expires_at DATETIME,
+      is_active INTEGER DEFAULT 1,
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    )`;
+  await run(paradeRoutesTableSQL);
   
   // Add address column if it doesn't exist
-  db.run(`ALTER TABLE parade_routes ADD COLUMN address TEXT`, (err) => {
-    // Ignore error if column already exists
-  });
+  try {
+    await run(`ALTER TABLE parade_routes ADD COLUMN address ${isPostgres ? 'VARCHAR(255)' : 'TEXT'}`);
+  } catch (err) {
+    if (!err.message.includes('duplicate column') && !err.message.includes('already exists')) {
+      console.error('Error adding address column to parade_routes:', err.message);
+    }
+  }
   
   // Add crossroads column if it doesn't exist
-  db.run(`ALTER TABLE parade_routes ADD COLUMN crossroads TEXT`, (err) => {
-    // Ignore error if column already exists
-  });
+  try {
+    await run(`ALTER TABLE parade_routes ADD COLUMN crossroads ${isPostgres ? 'VARCHAR(255)' : 'TEXT'}`);
+  } catch (err) {
+    if (!err.message.includes('duplicate column') && !err.message.includes('already exists')) {
+      console.error('Error adding crossroads column to parade_routes:', err.message);
+    }
+  }
 
   // Detours table
-  db.run(`CREATE TABLE IF NOT EXISTS detours (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    description TEXT,
-    address TEXT,
-    crossroads TEXT,
-    coordinates TEXT NOT NULL,
-    created_by INTEGER,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    expires_at DATETIME,
-    is_active INTEGER DEFAULT 1,
-    FOREIGN KEY (created_by) REFERENCES users(id)
-  )`);
+  const detoursTableSQL = isPostgres
+    ? `CREATE TABLE IF NOT EXISTS detours (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      description TEXT,
+      address VARCHAR(255),
+      crossroads VARCHAR(255),
+      coordinates TEXT NOT NULL,
+      created_by INTEGER,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      expires_at TIMESTAMP,
+      is_active BOOLEAN DEFAULT true,
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    )`
+    : `CREATE TABLE IF NOT EXISTS detours (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT,
+      address TEXT,
+      crossroads TEXT,
+      coordinates TEXT NOT NULL,
+      created_by INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      expires_at DATETIME,
+      is_active INTEGER DEFAULT 1,
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    )`;
+  await run(detoursTableSQL);
   
   // Add address column if it doesn't exist
-  db.run(`ALTER TABLE detours ADD COLUMN address TEXT`, (err) => {
-    // Ignore error if column already exists
-  });
+  try {
+    await run(`ALTER TABLE detours ADD COLUMN address ${isPostgres ? 'VARCHAR(255)' : 'TEXT'}`);
+  } catch (err) {
+    if (!err.message.includes('duplicate column') && !err.message.includes('already exists')) {
+      console.error('Error adding address column to detours:', err.message);
+    }
+  }
   
   // Add crossroads column if it doesn't exist
-  db.run(`ALTER TABLE detours ADD COLUMN crossroads TEXT`, (err) => {
-    // Ignore error if column already exists
-  });
+  try {
+    await run(`ALTER TABLE detours ADD COLUMN crossroads ${isPostgres ? 'VARCHAR(255)' : 'TEXT'}`);
+  } catch (err) {
+    if (!err.message.includes('duplicate column') && !err.message.includes('already exists')) {
+      console.error('Error adding crossroads column to detours:', err.message);
+    }
+  }
 
   // Callouts table (MCI mass callouts)
-  db.run(`CREATE TABLE IF NOT EXISTS callouts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT NOT NULL,
-    message TEXT NOT NULL,
-    department_id INTEGER NOT NULL,
-    location TEXT,
-    priority TEXT DEFAULT 'high',
-    created_by INTEGER,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    expires_at DATETIME,
-    is_active INTEGER DEFAULT 1,
-    acknowledged_by TEXT,
-    FOREIGN KEY (department_id) REFERENCES departments(id),
-    FOREIGN KEY (created_by) REFERENCES users(id)
-  )`);
+  const calloutsTableSQL = isPostgres
+    ? `CREATE TABLE IF NOT EXISTS callouts (
+      id SERIAL PRIMARY KEY,
+      title VARCHAR(255) NOT NULL,
+      message TEXT NOT NULL,
+      department_id INTEGER NOT NULL,
+      location VARCHAR(255),
+      priority VARCHAR(50) DEFAULT 'high',
+      created_by INTEGER,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      expires_at TIMESTAMP,
+      is_active BOOLEAN DEFAULT true,
+      acknowledged_by TEXT,
+      FOREIGN KEY (department_id) REFERENCES departments(id),
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    )`
+    : `CREATE TABLE IF NOT EXISTS callouts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      department_id INTEGER NOT NULL,
+      location TEXT,
+      priority TEXT DEFAULT 'high',
+      created_by INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      expires_at DATETIME,
+      is_active INTEGER DEFAULT 1,
+      acknowledged_by TEXT,
+      FOREIGN KEY (department_id) REFERENCES departments(id),
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    )`;
+  await run(calloutsTableSQL);
 
   // Push subscriptions table
-  db.run(`CREATE TABLE IF NOT EXISTS push_subscriptions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    endpoint TEXT UNIQUE NOT NULL,
-    p256dh TEXT NOT NULL,
-    auth TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`);
+  const pushSubsTableSQL = isPostgres
+    ? `CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id SERIAL PRIMARY KEY,
+      endpoint TEXT UNIQUE NOT NULL,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`
+    : `CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      endpoint TEXT UNIQUE NOT NULL,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`;
+  await run(pushSubsTableSQL);
 
   // Chat messages table
-  db.run(`CREATE TABLE IF NOT EXISTS chat_messages (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    message TEXT NOT NULL,
-    department_id INTEGER,
-    user_id INTEGER NOT NULL,
-    user_name TEXT NOT NULL,
-    department_name TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (department_id) REFERENCES departments(id),
-    FOREIGN KEY (user_id) REFERENCES users(id)
-  )`);
+  const chatMessagesTableSQL = isPostgres
+    ? `CREATE TABLE IF NOT EXISTS chat_messages (
+      id SERIAL PRIMARY KEY,
+      message TEXT NOT NULL,
+      department_id INTEGER,
+      user_id INTEGER NOT NULL,
+      user_name VARCHAR(255) NOT NULL,
+      department_name VARCHAR(255),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (department_id) REFERENCES departments(id),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    )`
+    : `CREATE TABLE IF NOT EXISTS chat_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      message TEXT NOT NULL,
+      department_id INTEGER,
+      user_id INTEGER NOT NULL,
+      user_name TEXT NOT NULL,
+      department_name TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (department_id) REFERENCES departments(id),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    )`;
+  await run(chatMessagesTableSQL);
 
   // Closed roads table
-  db.run(`CREATE TABLE IF NOT EXISTS closed_roads (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    description TEXT,
-    address TEXT,
-    crossroads TEXT,
-    coordinates TEXT NOT NULL,
-    created_by INTEGER,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    expires_at DATETIME,
-    is_active INTEGER DEFAULT 1,
-    FOREIGN KEY (created_by) REFERENCES users(id)
-  )`);
+  const closedRoadsTableSQL = isPostgres
+    ? `CREATE TABLE IF NOT EXISTS closed_roads (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      description TEXT,
+      address VARCHAR(255),
+      crossroads VARCHAR(255),
+      coordinates TEXT NOT NULL,
+      created_by INTEGER,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      expires_at TIMESTAMP,
+      is_active BOOLEAN DEFAULT true,
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    )`
+    : `CREATE TABLE IF NOT EXISTS closed_roads (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT,
+      address TEXT,
+      crossroads TEXT,
+      coordinates TEXT NOT NULL,
+      created_by INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      expires_at DATETIME,
+      is_active INTEGER DEFAULT 1,
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    )`;
+  await run(closedRoadsTableSQL);
   
   // Add crossroads column if it doesn't exist
-  db.run(`ALTER TABLE closed_roads ADD COLUMN crossroads TEXT`, (err) => {
-    // Ignore error if column already exists
-  });
+  try {
+    await run(`ALTER TABLE closed_roads ADD COLUMN crossroads ${isPostgres ? 'VARCHAR(255)' : 'TEXT'}`);
+  } catch (err) {
+    if (!err.message.includes('duplicate column') && !err.message.includes('already exists')) {
+      console.error('Error adding crossroads column to closed_roads:', err.message);
+    }
+  }
 
   // Search and Rescue operations table
-  db.run(`CREATE TABLE IF NOT EXISTS search_rescue_operations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    case_number TEXT UNIQUE,
-    title TEXT NOT NULL,
-    description TEXT,
-    location TEXT NOT NULL,
-    latitude REAL,
-    longitude REAL,
-    status TEXT DEFAULT 'active',
-    priority TEXT DEFAULT 'medium',
-    missing_person_name TEXT,
-    missing_person_age TEXT,
-    missing_person_description TEXT,
-    last_seen_location TEXT,
-    last_seen_time DATETIME,
-    contact_name TEXT,
-    contact_phone TEXT,
-    assigned_team TEXT,
-    search_area_coordinates TEXT,
-    created_by INTEGER,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    resolved_at DATETIME,
-    is_active INTEGER DEFAULT 1,
-    FOREIGN KEY (created_by) REFERENCES users(id)
-  )`);
+  const sarTableSQL = isPostgres
+    ? `CREATE TABLE IF NOT EXISTS search_rescue_operations (
+      id SERIAL PRIMARY KEY,
+      case_number VARCHAR(255) UNIQUE,
+      title VARCHAR(255) NOT NULL,
+      description TEXT,
+      location VARCHAR(255) NOT NULL,
+      latitude DOUBLE PRECISION,
+      longitude DOUBLE PRECISION,
+      status VARCHAR(50) DEFAULT 'active',
+      priority VARCHAR(50) DEFAULT 'medium',
+      missing_person_name VARCHAR(255),
+      missing_person_age VARCHAR(50),
+      missing_person_description TEXT,
+      last_seen_location VARCHAR(255),
+      last_seen_time TIMESTAMP,
+      contact_name VARCHAR(255),
+      contact_phone VARCHAR(50),
+      assigned_team VARCHAR(255),
+      search_area_coordinates TEXT,
+      crossroads VARCHAR(255),
+      created_by INTEGER,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      resolved_at TIMESTAMP,
+      is_active BOOLEAN DEFAULT true,
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    )`
+    : `CREATE TABLE IF NOT EXISTS search_rescue_operations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      case_number TEXT UNIQUE,
+      title TEXT NOT NULL,
+      description TEXT,
+      location TEXT NOT NULL,
+      latitude REAL,
+      longitude REAL,
+      status TEXT DEFAULT 'active',
+      priority TEXT DEFAULT 'medium',
+      missing_person_name TEXT,
+      missing_person_age TEXT,
+      missing_person_description TEXT,
+      last_seen_location TEXT,
+      last_seen_time DATETIME,
+      contact_name TEXT,
+      contact_phone TEXT,
+      assigned_team TEXT,
+      search_area_coordinates TEXT,
+      crossroads TEXT,
+      created_by INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      resolved_at DATETIME,
+      is_active INTEGER DEFAULT 1,
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    )`;
+  await run(sarTableSQL);
+  
+  // Add crossroads column if it doesn't exist
+  try {
+    await run(`ALTER TABLE search_rescue_operations ADD COLUMN crossroads ${isPostgres ? 'VARCHAR(255)' : 'TEXT'}`);
+  } catch (err) {
+    if (!err.message.includes('duplicate column') && !err.message.includes('already exists')) {
+      console.error('Error adding crossroads column to search_rescue_operations:', err.message);
+    }
+  });
 
   // Create default admin user (password: admin123)
   // This runs after all tables are created
-  // First check if admin exists, if not create it, if it exists but password might be wrong, update it
-  setTimeout(() => {
-    db.get('SELECT * FROM users WHERE username = ?', ['admin'], (err, existingUser) => {
-      if (err) {
-        console.error('Error checking for admin user:', err);
-        console.error('Error details:', err.message);
-        return;
-      }
+  setTimeout(async () => {
+    try {
+      const existingUser = await get('SELECT * FROM users WHERE username = ?', ['admin']);
       
       const defaultPassword = bcrypt.hashSync('admin123', 10);
       
       if (!existingUser) {
         // Create admin user
-        db.run(`INSERT INTO users (username, password, role, name) 
-          VALUES (?, ?, ?, ?)`, ['admin', defaultPassword, 'admin', 'Administrator'], function(err) {
-          if (err) {
-            console.error('Error creating default admin user:', err);
-            console.error('Error details:', err.message);
-          } else {
-            console.log('✅ Default admin user created: username=admin, password=admin123');
-            console.log('   User ID:', this.lastID);
-          }
-        });
+        const result = await run(
+          `INSERT INTO users (username, password, role, name) 
+           VALUES (?, ?, ?, ?)`,
+          ['admin', defaultPassword, 'admin', 'Administrator']
+        );
+        console.log('✅ Default admin user created: username=admin, password=admin123');
+        if (result.lastID) {
+          console.log('   User ID:', result.lastID);
+        }
       } else {
         // Admin exists, verify password works
-        bcrypt.compare('admin123', existingUser.password, (err, match) => {
-          if (err) {
-            console.error('Error comparing admin password:', err);
-            return;
-          }
-          if (!match) {
-            // Password doesn't match, update it
-            console.log('Admin user exists but password is incorrect. Resetting password...');
-            db.run('UPDATE users SET password = ? WHERE username = ?', [defaultPassword, 'admin'], function(err) {
-              if (err) {
-                console.error('Error resetting admin password:', err);
-              } else {
-                console.log('✅ Admin password reset: username=admin, password=admin123');
-              }
-            });
-          } else {
-            console.log('✅ Admin user exists and password is correct');
-            console.log('   Admin user ID:', existingUser.id);
-            console.log('   Login with: username=admin, password=admin123');
-          }
-        });
+        const match = await bcrypt.compare('admin123', existingUser.password);
+        if (!match) {
+          // Password doesn't match, update it
+          console.log('Admin user exists but password is incorrect. Resetting password...');
+          await run(
+            `UPDATE users SET password = ? WHERE username = ?`,
+            [defaultPassword, 'admin']
+          );
+          console.log('✅ Admin password reset: username=admin, password=admin123');
+        } else {
+          console.log('✅ Admin user exists and password is correct');
+          console.log('   Admin user ID:', existingUser.id);
+          console.log('   Login with: username=admin, password=admin123');
+        }
       }
-    });
+    } catch (err) {
+      console.error('Error managing admin user:', err);
+      console.error('Error details:', err.message);
+    }
   }, 1000); // Wait 1 second to ensure all tables are created
 });
 
@@ -365,11 +588,11 @@ const authenticateToken = (req, res, next) => {
 };
 
 // Auth Routes
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
   console.log('=== LOGIN REQUEST ===');
   console.log('Request body:', JSON.stringify(req.body));
   console.log('Headers:', JSON.stringify(req.headers));
-  console.log('Database path:', dbPath);
+  console.log('Database type:', dbType);
   
   const { username, password } = req.body;
 
@@ -380,67 +603,55 @@ app.post('/api/auth/login', (req, res) => {
 
   console.log('Looking up user:', username);
   
-  // First, verify database is accessible
-  db.get('SELECT COUNT(*) as count FROM users', [], (dbCheckErr) => {
-    if (dbCheckErr) {
-      console.error('Database accessibility check failed:', dbCheckErr);
-      return res.status(500).json({ 
-        error: 'Database connection error. Please check server logs.',
-        details: process.env.NODE_ENV === 'development' ? dbCheckErr.message : undefined
-      });
+  try {
+    // First, verify database is accessible
+    await get('SELECT COUNT(*) as count FROM users');
+    
+    // Database is accessible, proceed with login
+    const user = await get('SELECT * FROM users WHERE username = ?', [username]);
+    
+    if (!user) {
+      console.log('Login failed: User not found -', username);
+      // Check if any users exist at all
+      const countResult = await get('SELECT COUNT(*) as count FROM users');
+      if (countResult && countResult.count === 0) {
+        console.log('⚠️ No users found in database. Default admin user may not have been created.');
+      }
+      return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Database is accessible, proceed with login
-    db.get('SELECT * FROM users WHERE username = ?', [username], (err, user) => {
-      if (err) {
-        console.error('Database error during login:', err);
-        return res.status(500).json({ 
-          error: 'Database error',
-          details: process.env.NODE_ENV === 'development' ? err.message : undefined
-        });
+    console.log('User found, comparing password...');
+    const match = await bcrypt.compare(password, user.password);
+    
+    if (!match) {
+      console.log('Login failed: Password mismatch for user -', username);
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    console.log('✅ Login successful for user:', username);
+
+    const token = jwt.sign(
+      { id: user.id, username: user.username, role: user.role },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        name: user.name
       }
-      if (!user) {
-        console.log('Login failed: User not found -', username);
-        // Check if any users exist at all
-        db.get('SELECT COUNT(*) as count FROM users', [], (countErr, countResult) => {
-          if (!countErr && countResult.count === 0) {
-            console.log('⚠️ No users found in database. Default admin user may not have been created.');
-          }
-        });
-        return res.status(401).json({ error: 'Invalid credentials' });
-      }
-
-      console.log('User found, comparing password...');
-      bcrypt.compare(password, user.password, (err, match) => {
-        if (err) {
-          console.error('Password comparison error:', err);
-          return res.status(401).json({ error: 'Invalid credentials' });
-        }
-        if (!match) {
-          console.log('Login failed: Password mismatch for user -', username);
-          return res.status(401).json({ error: 'Invalid credentials' });
-        }
-
-        console.log('✅ Login successful for user:', username);
-
-        const token = jwt.sign(
-          { id: user.id, username: user.username, role: user.role },
-          JWT_SECRET,
-          { expiresIn: '24h' }
-        );
-
-        res.json({
-          token,
-          user: {
-            id: user.id,
-            username: user.username,
-            role: user.role,
-            name: user.name
-          }
-        });
-      });
     });
-  });
+  } catch (err) {
+    console.error('Database error during login:', err);
+    return res.status(500).json({ 
+      error: 'Database connection error. Please check server logs.',
+      details: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+  }
 });
 
 // Public Routes

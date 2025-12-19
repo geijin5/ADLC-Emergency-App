@@ -3404,7 +3404,8 @@ const PersonnelDashboard = () => {
                     onChange={(e) => setSarForm({ ...sarForm, status: e.target.value })}
                     required
                   >
-                    <option value="active">Active</option>
+                    <option value="active">Active Operation</option>
+                    <option value="training">Training</option>
                     <option value="in_progress">In Progress</option>
                     <option value="resolved">Resolved</option>
                     <option value="closed">Closed</option>
