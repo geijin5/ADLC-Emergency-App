@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import PublicHome from './components/Public/PublicHome';
 import PublicAlerts from './components/Public/PublicAlerts';
+import SearchAndRescue from './components/Public/SearchAndRescue';
 import PersonnelLogin from './components/Personnel/PersonnelLogin';
 import PersonnelDashboard from './components/Personnel/PersonnelDashboard';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -19,6 +20,7 @@ function App() {
         <Routes>
           <Route path="/" element={<PublicHome />} />
           <Route path="/alerts" element={<PublicAlerts />} />
+          <Route path="/search-rescue" element={<SearchAndRescue />} />
           <Route path="/personnel/login" element={<PersonnelLogin />} />
           <Route
             path="/personnel/dashboard"

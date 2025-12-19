@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { createAlert, getUsers, createUser, updateUser, deleteUser, getDepartments, createDepartment, updateDepartment, deleteDepartment, getPersonnelClosedAreas, createClosedArea, updateClosedArea, deleteClosedArea, getPersonnelParadeRoutes, createParadeRoute, updateParadeRoute, deleteParadeRoute, getPersonnelDetours, createDetour, updateDetour, deleteDetour, getPersonnelClosedRoads, createClosedRoad, updateClosedRoad, deleteClosedRoad, deleteAllClosedRoads, getCallouts, createCallout, acknowledgeCallout, updateCallout, getChatMessages, sendChatMessage } from '../../api/api';
+import { createAlert, getUsers, createUser, updateUser, deleteUser, getDepartments, createDepartment, updateDepartment, deleteDepartment, getPersonnelClosedAreas, createClosedArea, updateClosedArea, deleteClosedArea, getPersonnelParadeRoutes, createParadeRoute, updateParadeRoute, deleteParadeRoute, getPersonnelDetours, createDetour, updateDetour, deleteDetour, getPersonnelClosedRoads, createClosedRoad, updateClosedRoad, deleteClosedRoad, deleteAllClosedRoads, getCallouts, createCallout, acknowledgeCallout, updateCallout, getChatMessages, sendChatMessage, getPersonnelSearchRescue, createSearchRescue, updateSearchRescue, deleteSearchRescue } from '../../api/api';
 import MapView from '../Public/MapView';
 
 const PersonnelDashboard = () => {
@@ -14,6 +14,7 @@ const PersonnelDashboard = () => {
   const [detours, setDetours] = useState([]);
   const [closedRoads, setClosedRoads] = useState([]);
   const [callouts, setCallouts] = useState([]);
+  const [searchRescueOps, setSearchRescueOps] = useState([]);
   const [loading, setLoading] = useState(true);
   const [mapRefreshTrigger, setMapRefreshTrigger] = useState(0);
   const [showAlertModal, setShowAlertModal] = useState(false);
@@ -25,6 +26,8 @@ const PersonnelDashboard = () => {
   const [showDeptModal, setShowDeptModal] = useState(false);
   const [showCalloutModal, setShowCalloutModal] = useState(false);
   const [showChatModal, setShowChatModal] = useState(false);
+  const [showSARModal, setShowSARModal] = useState(false);
+  const [editingSAR, setEditingSAR] = useState(null);
   const [chatMessages, setChatMessages] = useState([]);
   const [chatMessage, setChatMessage] = useState('');
   const [selectedChatDept, setSelectedChatDept] = useState('all');
@@ -92,6 +95,25 @@ const PersonnelDashboard = () => {
     priority: 'high',
     expires_at: ''
   });
+  const [sarForm, setSarForm] = useState({
+    case_number: '',
+    title: '',
+    description: '',
+    location: '',
+    latitude: '',
+    longitude: '',
+    status: 'active',
+    priority: 'medium',
+    missing_person_name: '',
+    missing_person_age: '',
+    missing_person_description: '',
+    last_seen_location: '',
+    last_seen_time: '',
+    contact_name: '',
+    contact_phone: '',
+    assigned_team: '',
+    search_area_coordinates: ''
+  });
   const [geocoding, setGeocoding] = useState(false);
 
   useEffect(() => {
@@ -143,14 +165,15 @@ const PersonnelDashboard = () => {
 
   const fetchData = async () => {
     try {
-      const [usersRes, deptsRes, areasRes, routesRes, detoursRes, roadsRes, calloutsRes] = await Promise.all([
+      const [usersRes, deptsRes, areasRes, routesRes, detoursRes, roadsRes, calloutsRes, sarRes] = await Promise.all([
         getUsers(),
         getDepartments(),
         getPersonnelClosedAreas(),
         getPersonnelParadeRoutes(),
         getPersonnelDetours(),
         getPersonnelClosedRoads(),
-        getCallouts()
+        getCallouts(),
+        getPersonnelSearchRescue()
       ]);
       setUsers(usersRes.data || []);
       setDepartments(deptsRes.data || []);
@@ -159,6 +182,7 @@ const PersonnelDashboard = () => {
       setDetours(detoursRes.data || []);
       setClosedRoads(roadsRes.data || []);
       setCallouts(calloutsRes.data || []);
+      setSearchRescueOps(sarRes.data || []);
     } catch (error) {
       console.error('Failed to fetch data:', error);
       if (error.response?.status === 401) {
@@ -365,6 +389,106 @@ const PersonnelDashboard = () => {
       } catch (error) {
         alert('Failed to deactivate callout');
       }
+    }
+  };
+
+  const handleCreateSAR = async (e) => {
+    e.preventDefault();
+    try {
+      if (!sarForm.title || !sarForm.location) {
+        alert('Please fill in title and location');
+        return;
+      }
+
+      const sarData = {
+        ...sarForm,
+        latitude: sarForm.latitude || null,
+        longitude: sarForm.longitude || null,
+        search_area_coordinates: sarForm.search_area_coordinates ? JSON.parse(sarForm.search_area_coordinates) : null,
+        last_seen_time: sarForm.last_seen_time || null
+      };
+
+      if (editingSAR) {
+        await updateSearchRescue(editingSAR.id, sarData);
+        alert('Search and rescue operation updated successfully');
+      } else {
+        await createSearchRescue(sarData);
+        alert('Search and rescue operation created successfully');
+      }
+
+      setShowSARModal(false);
+      setEditingSAR(null);
+      setSarForm({
+        case_number: '',
+        title: '',
+        description: '',
+        location: '',
+        latitude: '',
+        longitude: '',
+        status: 'active',
+        priority: 'medium',
+        missing_person_name: '',
+        missing_person_age: '',
+        missing_person_description: '',
+        last_seen_location: '',
+        last_seen_time: '',
+        contact_name: '',
+        contact_phone: '',
+        assigned_team: '',
+        search_area_coordinates: ''
+      });
+      fetchData();
+      setMapRefreshTrigger(prev => prev + 1);
+    } catch (error) {
+      const errorMessage = error.response?.data?.error || error.message || 'Failed to save search and rescue operation';
+      alert(`Error: ${errorMessage}`);
+      console.error('Error saving SAR operation:', error);
+    }
+  };
+
+  const handleEditSAR = (operation) => {
+    setEditingSAR(operation);
+    setSarForm({
+      case_number: operation.case_number || '',
+      title: operation.title || '',
+      description: operation.description || '',
+      location: operation.location || '',
+      latitude: operation.latitude || '',
+      longitude: operation.longitude || '',
+      status: operation.status || 'active',
+      priority: operation.priority || 'medium',
+      missing_person_name: operation.missing_person_name || '',
+      missing_person_age: operation.missing_person_age || '',
+      missing_person_description: operation.missing_person_description || '',
+      last_seen_location: operation.last_seen_location || '',
+      last_seen_time: operation.last_seen_time ? operation.last_seen_time.substring(0, 16) : '',
+      contact_name: operation.contact_name || '',
+      contact_phone: operation.contact_phone || '',
+      assigned_team: operation.assigned_team || '',
+      search_area_coordinates: operation.search_area_coordinates ? JSON.stringify(operation.search_area_coordinates) : ''
+    });
+    setShowSARModal(true);
+  };
+
+  const handleDeleteSAR = async (operationId) => {
+    if (window.confirm('Are you sure you want to delete this search and rescue operation?')) {
+      try {
+        await deleteSearchRescue(operationId);
+        fetchData();
+        setMapRefreshTrigger(prev => prev + 1);
+      } catch (error) {
+        alert(error.response?.data?.error || 'Failed to delete search and rescue operation');
+      }
+    }
+  };
+
+  const handleUpdateSARStatus = async (operationId, status) => {
+    try {
+      await updateSearchRescue(operationId, { status });
+      fetchData();
+      setMapRefreshTrigger(prev => prev + 1);
+    } catch (error) {
+      alert('Failed to update search and rescue operation status');
     }
   };
 
@@ -1079,6 +1203,13 @@ const PersonnelDashboard = () => {
                 💬 Department Chat
               </button>
               <button 
+                onClick={() => { setEditingSAR(null); setShowSARModal(true); }} 
+                className="btn btn-success"
+                style={{ backgroundColor: '#059669' }}
+              >
+                🔍 Search & Rescue
+              </button>
+              <button 
                 onClick={() => setShowAreaModal(true)} 
                 className="btn btn-success"
               >
@@ -1381,6 +1512,92 @@ const PersonnelDashboard = () => {
                               </button>
                               <button
                                 onClick={() => handleDeleteClosedRoad(road.id)}
+                                className="btn btn-primary"
+                                style={{ padding: '5px 10px', fontSize: '12px', backgroundColor: '#ef4444' }}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Search and Rescue Operations */}
+            <div className="card" style={{ marginTop: '30px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h2 style={{ margin: 0 }}>🔍 Search and Rescue Operations</h2>
+                <button
+                  onClick={() => { setEditingSAR(null); setShowSARModal(true); }}
+                  className="btn btn-success"
+                  style={{ padding: '8px 16px', fontSize: '14px', backgroundColor: '#059669' }}
+                >
+                  + New Operation
+                </button>
+              </div>
+              {searchRescueOps.length === 0 ? (
+                <p style={{ textAlign: 'center', color: '#6b7280' }}>No search and rescue operations.</p>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Case #</th>
+                        <th>Title</th>
+                        <th>Location</th>
+                        <th>Status</th>
+                        <th>Priority</th>
+                        <th>Missing Person</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {searchRescueOps.map((op) => (
+                        <tr key={op.id}>
+                          <td><strong>{op.case_number || `SAR-${op.id}`}</strong></td>
+                          <td>{op.title}</td>
+                          <td>{op.location}</td>
+                          <td>
+                            <span className={`badge badge-${op.status === 'active' || op.status === 'in_progress' ? 'in-progress' : op.status === 'resolved' ? 'resolved' : 'pending'}`}>
+                              {op.status || 'active'}
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`badge ${op.priority === 'high' ? 'badge-danger' : op.priority === 'medium' ? 'badge-warning' : 'badge-in-progress'}`}>
+                              {op.priority || 'medium'}
+                            </span>
+                          </td>
+                          <td>{op.missing_person_name || '-'}</td>
+                          <td style={{ fontSize: '12px', color: '#d1d5db' }}>
+                            {formatDate(op.created_at)}
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                              <button
+                                onClick={() => handleEditSAR(op)}
+                                className="btn btn-primary"
+                                style={{ padding: '5px 10px', fontSize: '12px' }}
+                              >
+                                Edit
+                              </button>
+                              <select
+                                value={op.status || 'active'}
+                                onChange={(e) => handleUpdateSARStatus(op.id, e.target.value)}
+                                className="btn"
+                                style={{ padding: '5px 10px', fontSize: '12px', marginRight: '5px' }}
+                              >
+                                <option value="active">Active</option>
+                                <option value="in_progress">In Progress</option>
+                                <option value="resolved">Resolved</option>
+                                <option value="closed">Closed</option>
+                              </select>
+                              <button
+                                onClick={() => handleDeleteSAR(op.id)}
                                 className="btn btn-primary"
                                 style={{ padding: '5px 10px', fontSize: '12px', backgroundColor: '#ef4444' }}
                               >
@@ -2770,6 +2987,268 @@ const PersonnelDashboard = () => {
                     });
                   }}
                   className="btn btn-secondary"
+                  style={{ flex: 1 }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Search and Rescue Modal */}
+      {showSARModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div className="card" style={{ maxWidth: '800px', width: '90%', maxHeight: '90vh', overflow: 'auto' }}>
+            <h2 style={{ marginBottom: '20px', color: '#f9fafb' }}>🔍 {editingSAR ? 'Edit' : 'New'} Search and Rescue Operation</h2>
+            <form onSubmit={handleCreateSAR}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                <div className="form-group">
+                  <label>Case Number (Auto-generated if empty)</label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={sarForm.case_number}
+                    onChange={(e) => setSarForm({ ...sarForm, case_number: e.target.value })}
+                    placeholder="SAR-12345"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Status *</label>
+                  <select
+                    className="select"
+                    value={sarForm.status}
+                    onChange={(e) => setSarForm({ ...sarForm, status: e.target.value })}
+                    required
+                  >
+                    <option value="active">Active</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="resolved">Resolved</option>
+                    <option value="closed">Closed</option>
+                  </select>
+                </div>
+              </div>
+              <div className="form-group">
+                <label>Operation Title *</label>
+                <input
+                  type="text"
+                  className="input"
+                  value={sarForm.title}
+                  onChange={(e) => setSarForm({ ...sarForm, title: e.target.value })}
+                  placeholder="e.g., Missing Hiker - Lost Creek Trail"
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label>Description</label>
+                <textarea
+                  className="input"
+                  value={sarForm.description}
+                  onChange={(e) => setSarForm({ ...sarForm, description: e.target.value })}
+                  placeholder="Detailed description of the search and rescue operation..."
+                  rows="3"
+                />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                <div className="form-group">
+                  <label>Location *</label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={sarForm.location}
+                    onChange={(e) => setSarForm({ ...sarForm, location: e.target.value })}
+                    placeholder="e.g., Lost Creek Trail, Anaconda"
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Priority</label>
+                  <select
+                    className="select"
+                    value={sarForm.priority}
+                    onChange={(e) => setSarForm({ ...sarForm, priority: e.target.value })}
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="critical">Critical</option>
+                  </select>
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                <div className="form-group">
+                  <label>Latitude (Optional)</label>
+                  <input
+                    type="number"
+                    step="any"
+                    className="input"
+                    value={sarForm.latitude}
+                    onChange={(e) => setSarForm({ ...sarForm, latitude: e.target.value })}
+                    placeholder="46.1286"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Longitude (Optional)</label>
+                  <input
+                    type="number"
+                    step="any"
+                    className="input"
+                    value={sarForm.longitude}
+                    onChange={(e) => setSarForm({ ...sarForm, longitude: e.target.value })}
+                    placeholder="-112.9422"
+                  />
+                </div>
+              </div>
+              <div style={{ borderTop: '1px solid #374151', paddingTop: '20px', marginTop: '20px' }}>
+                <h3 style={{ color: '#f9fafb', marginBottom: '15px' }}>Missing Person Information</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                  <div className="form-group">
+                    <label>Name</label>
+                    <input
+                      type="text"
+                      className="input"
+                      value={sarForm.missing_person_name}
+                      onChange={(e) => setSarForm({ ...sarForm, missing_person_name: e.target.value })}
+                      placeholder="Full name"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Age</label>
+                    <input
+                      type="text"
+                      className="input"
+                      value={sarForm.missing_person_age}
+                      onChange={(e) => setSarForm({ ...sarForm, missing_person_age: e.target.value })}
+                      placeholder="e.g., 35 or 5-10"
+                    />
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label>Description</label>
+                  <textarea
+                    className="input"
+                    value={sarForm.missing_person_description}
+                    onChange={(e) => setSarForm({ ...sarForm, missing_person_description: e.target.value })}
+                    placeholder="Physical description, clothing, medical conditions, etc."
+                    rows="3"
+                  />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                  <div className="form-group">
+                    <label>Last Seen Location</label>
+                    <input
+                      type="text"
+                      className="input"
+                      value={sarForm.last_seen_location}
+                      onChange={(e) => setSarForm({ ...sarForm, last_seen_location: e.target.value })}
+                      placeholder="Where was the person last seen?"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Last Seen Time</label>
+                    <input
+                      type="datetime-local"
+                      className="input"
+                      value={sarForm.last_seen_time}
+                      onChange={(e) => setSarForm({ ...sarForm, last_seen_time: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </div>
+              <div style={{ borderTop: '1px solid #374151', paddingTop: '20px', marginTop: '20px' }}>
+                <h3 style={{ color: '#f9fafb', marginBottom: '15px' }}>Contact Information</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                  <div className="form-group">
+                    <label>Contact Name</label>
+                    <input
+                      type="text"
+                      className="input"
+                      value={sarForm.contact_name}
+                      onChange={(e) => setSarForm({ ...sarForm, contact_name: e.target.value })}
+                      placeholder="Reporting party name"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Contact Phone</label>
+                    <input
+                      type="text"
+                      className="input"
+                      value={sarForm.contact_phone}
+                      onChange={(e) => setSarForm({ ...sarForm, contact_phone: e.target.value })}
+                      placeholder="(406) 555-1234"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="form-group">
+                <label>Assigned Team</label>
+                <input
+                  type="text"
+                  className="input"
+                  value={sarForm.assigned_team}
+                  onChange={(e) => setSarForm({ ...sarForm, assigned_team: e.target.value })}
+                  placeholder="e.g., SAR Team Alpha, Mountain Rescue Unit"
+                />
+              </div>
+              <div className="form-group">
+                <label>Search Area Coordinates (JSON Array, Optional)</label>
+                <textarea
+                  className="input"
+                  value={sarForm.search_area_coordinates}
+                  onChange={(e) => setSarForm({ ...sarForm, search_area_coordinates: e.target.value })}
+                  placeholder='[[46.1, -112.9], [46.2, -112.8], [46.1, -112.8], [46.1, -112.9]]'
+                  rows="3"
+                />
+                <small style={{ color: '#d1d5db', marginTop: '5px', display: 'block' }}>
+                  Array of [latitude, longitude] pairs defining the search area polygon
+                </small>
+              </div>
+              <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+                <button 
+                  type="submit" 
+                  className="btn btn-primary" 
+                  style={{ flex: 1 }}
+                >
+                  {editingSAR ? 'Update Operation' : 'Create Operation'}
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setShowSARModal(false);
+                    setEditingSAR(null);
+                    setSarForm({
+                      case_number: '',
+                      title: '',
+                      description: '',
+                      location: '',
+                      latitude: '',
+                      longitude: '',
+                      status: 'active',
+                      priority: 'medium',
+                      missing_person_name: '',
+                      missing_person_age: '',
+                      missing_person_description: '',
+                      last_seen_location: '',
+                      last_seen_time: '',
+                      contact_name: '',
+                      contact_phone: '',
+                      assigned_team: '',
+                      search_area_coordinates: ''
+                    });
+                  }}
+                  className="btn btn-secondary" 
                   style={{ flex: 1 }}
                 >
                   Cancel

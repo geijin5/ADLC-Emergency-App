@@ -49,6 +49,14 @@ const PublicHome = () => {
           </div>
 
           <div className="feature-card">
+            <h3 style={{ color: '#f9fafb' }}>🔍 Search & Rescue</h3>
+            <p style={{ color: '#d1d5db' }}>View active search and rescue operations in the county. If you have information about a missing person, contact 911 immediately.</p>
+            <Link to="/search-rescue" className="btn btn-secondary" style={{ textDecoration: 'none', display: 'inline-block', marginTop: '15px' }}>
+              View Operations
+            </Link>
+          </div>
+
+          <div className="feature-card">
             <h3 style={{ color: '#f9fafb' }}>📞 Contact Information</h3>
             <p style={{ color: '#d1d5db' }}><strong>Emergency:</strong> 911</p>
             <p style={{ color: '#d1d5db' }}><strong>Non-Emergency:</strong> (406) 563-5241</p>

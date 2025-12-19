@@ -1,6 +1,9 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+// In production, use relative path since server and client are on same domain
+// In development, use localhost or REACT_APP_API_URL if set
+const API_BASE_URL = process.env.REACT_APP_API_URL || 
+  (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:5000/api');
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -191,6 +194,27 @@ export const getChatMessages = (departmentId) => {
 
 export const sendChatMessage = (message, departmentId) => {
   return api.post('/personnel/chat/messages', { message, department_id: departmentId });
+};
+
+// Search and Rescue API
+export const getPersonnelSearchRescue = () => {
+  return api.get('/personnel/search-rescue');
+};
+
+export const getPublicSearchRescue = () => {
+  return api.get('/public/search-rescue');
+};
+
+export const createSearchRescue = (data) => {
+  return api.post('/personnel/search-rescue', data);
+};
+
+export const updateSearchRescue = (id, data) => {
+  return api.put(`/personnel/search-rescue/${id}`, data);
+};
+
+export const deleteSearchRescue = (id) => {
+  return api.delete(`/personnel/search-rescue/${id}`);
 };
 
 export default api;

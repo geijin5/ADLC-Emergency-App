@@ -18,7 +18,14 @@ app.use(express.json());
 
 // Initialize database
 const dbPath = path.join(__dirname, 'emergency.db');
-const db = new sqlite3.Database(dbPath);
+console.log('Database path:', dbPath);
+const db = new sqlite3.Database(dbPath, (err) => {
+  if (err) {
+    console.error('Error opening database:', err);
+  } else {
+    console.log('✅ Database connection established');
+  }
+});
 
 // Initialize database tables
 db.serialize(() => {
@@ -212,46 +219,85 @@ db.serialize(() => {
     FOREIGN KEY (created_by) REFERENCES users(id)
   )`);
 
+  // Search and Rescue operations table
+  db.run(`CREATE TABLE IF NOT EXISTS search_rescue_operations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    case_number TEXT UNIQUE,
+    title TEXT NOT NULL,
+    description TEXT,
+    location TEXT NOT NULL,
+    latitude REAL,
+    longitude REAL,
+    status TEXT DEFAULT 'active',
+    priority TEXT DEFAULT 'medium',
+    missing_person_name TEXT,
+    missing_person_age TEXT,
+    missing_person_description TEXT,
+    last_seen_location TEXT,
+    last_seen_time DATETIME,
+    contact_name TEXT,
+    contact_phone TEXT,
+    assigned_team TEXT,
+    search_area_coordinates TEXT,
+    created_by INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    resolved_at DATETIME,
+    is_active INTEGER DEFAULT 1,
+    FOREIGN KEY (created_by) REFERENCES users(id)
+  )`);
+
   // Create default admin user (password: admin123)
+  // This runs after all tables are created
   // First check if admin exists, if not create it, if it exists but password might be wrong, update it
-  db.get('SELECT * FROM users WHERE username = ?', ['admin'], (err, existingUser) => {
-    if (err) {
-      console.error('Error checking for admin user:', err);
-      return;
-    }
-    
-    const defaultPassword = bcrypt.hashSync('admin123', 10);
-    
-    if (!existingUser) {
-      // Create admin user
-      db.run(`INSERT INTO users (username, password, role, name) 
-        VALUES (?, ?, ?, ?)`, ['admin', defaultPassword, 'admin', 'Administrator'], function(err) {
-        if (err) {
-          console.error('Error creating default admin user:', err);
-        } else {
-          console.log('✅ Default admin user created: username=admin, password=admin123');
-        }
-      });
-    } else {
-      // Admin exists, verify password works
-      bcrypt.compare('admin123', existingUser.password, (err, match) => {
-        if (err || !match) {
-          // Password doesn't match, update it
-          console.log('Admin user exists but password is incorrect. Resetting password...');
-          db.run('UPDATE users SET password = ? WHERE username = ?', [defaultPassword, 'admin'], function(err) {
-            if (err) {
-              console.error('Error resetting admin password:', err);
-            } else {
-              console.log('✅ Admin password reset: username=admin, password=admin123');
-            }
-          });
-        } else {
-          console.log('✅ Default admin user exists and password is correct');
-          console.log('   Login with: username=admin, password=admin123');
-        }
-      });
-    }
-  });
+  setTimeout(() => {
+    db.get('SELECT * FROM users WHERE username = ?', ['admin'], (err, existingUser) => {
+      if (err) {
+        console.error('Error checking for admin user:', err);
+        console.error('Error details:', err.message);
+        return;
+      }
+      
+      const defaultPassword = bcrypt.hashSync('admin123', 10);
+      
+      if (!existingUser) {
+        // Create admin user
+        db.run(`INSERT INTO users (username, password, role, name) 
+          VALUES (?, ?, ?, ?)`, ['admin', defaultPassword, 'admin', 'Administrator'], function(err) {
+          if (err) {
+            console.error('Error creating default admin user:', err);
+            console.error('Error details:', err.message);
+          } else {
+            console.log('✅ Default admin user created: username=admin, password=admin123');
+            console.log('   User ID:', this.lastID);
+          }
+        });
+      } else {
+        // Admin exists, verify password works
+        bcrypt.compare('admin123', existingUser.password, (err, match) => {
+          if (err) {
+            console.error('Error comparing admin password:', err);
+            return;
+          }
+          if (!match) {
+            // Password doesn't match, update it
+            console.log('Admin user exists but password is incorrect. Resetting password...');
+            db.run('UPDATE users SET password = ? WHERE username = ?', [defaultPassword, 'admin'], function(err) {
+              if (err) {
+                console.error('Error resetting admin password:', err);
+              } else {
+                console.log('✅ Admin password reset: username=admin, password=admin123');
+              }
+            });
+          } else {
+            console.log('✅ Admin user exists and password is correct');
+            console.log('   Admin user ID:', existingUser.id);
+            console.log('   Login with: username=admin, password=admin123');
+          }
+        });
+      }
+    });
+  }, 1000); // Wait 1 second to ensure all tables are created
 });
 
 // Initialize VAPID keys for web push
@@ -299,6 +345,7 @@ app.post('/api/auth/login', (req, res) => {
   console.log('=== LOGIN REQUEST ===');
   console.log('Request body:', JSON.stringify(req.body));
   console.log('Headers:', JSON.stringify(req.headers));
+  console.log('Database path:', dbPath);
   
   const { username, password } = req.body;
 
@@ -308,43 +355,65 @@ app.post('/api/auth/login', (req, res) => {
   }
 
   console.log('Looking up user:', username);
-  db.get('SELECT * FROM users WHERE username = ?', [username], (err, user) => {
-    if (err) {
-      console.error('Database error during login:', err);
-      return res.status(500).json({ error: 'Database error' });
-    }
-    if (!user) {
-      console.log('Login failed: User not found -', username);
-      return res.status(401).json({ error: 'Invalid credentials' });
+  
+  // First, verify database is accessible
+  db.get('SELECT COUNT(*) as count FROM users', [], (dbCheckErr) => {
+    if (dbCheckErr) {
+      console.error('Database accessibility check failed:', dbCheckErr);
+      return res.status(500).json({ 
+        error: 'Database connection error. Please check server logs.',
+        details: process.env.NODE_ENV === 'development' ? dbCheckErr.message : undefined
+      });
     }
 
-    console.log('User found, comparing password...');
-    bcrypt.compare(password, user.password, (err, match) => {
+    // Database is accessible, proceed with login
+    db.get('SELECT * FROM users WHERE username = ?', [username], (err, user) => {
       if (err) {
-        console.error('Password comparison error:', err);
+        console.error('Database error during login:', err);
+        return res.status(500).json({ 
+          error: 'Database error',
+          details: process.env.NODE_ENV === 'development' ? err.message : undefined
+        });
+      }
+      if (!user) {
+        console.log('Login failed: User not found -', username);
+        // Check if any users exist at all
+        db.get('SELECT COUNT(*) as count FROM users', [], (countErr, countResult) => {
+          if (!countErr && countResult.count === 0) {
+            console.log('⚠️ No users found in database. Default admin user may not have been created.');
+          }
+        });
         return res.status(401).json({ error: 'Invalid credentials' });
       }
-      if (!match) {
-        console.log('Login failed: Password mismatch for user -', username);
-        return res.status(401).json({ error: 'Invalid credentials' });
-      }
 
-      console.log('✅ Login successful for user:', username);
-
-      const token = jwt.sign(
-        { id: user.id, username: user.username, role: user.role },
-        JWT_SECRET,
-        { expiresIn: '24h' }
-      );
-
-      res.json({
-        token,
-        user: {
-          id: user.id,
-          username: user.username,
-          role: user.role,
-          name: user.name
+      console.log('User found, comparing password...');
+      bcrypt.compare(password, user.password, (err, match) => {
+        if (err) {
+          console.error('Password comparison error:', err);
+          return res.status(401).json({ error: 'Invalid credentials' });
         }
+        if (!match) {
+          console.log('Login failed: Password mismatch for user -', username);
+          return res.status(401).json({ error: 'Invalid credentials' });
+        }
+
+        console.log('✅ Login successful for user:', username);
+
+        const token = jwt.sign(
+          { id: user.id, username: user.username, role: user.role },
+          JWT_SECRET,
+          { expiresIn: '24h' }
+        );
+
+        res.json({
+          token,
+          user: {
+            id: user.id,
+            username: user.username,
+            role: user.role,
+            name: user.name
+          }
+        });
       });
     });
   });
@@ -1440,6 +1509,321 @@ app.post('/api/personnel/chat/messages', authenticateToken, (req, res) => {
   });
 });
 
+// Search and Rescue Operations Routes
+app.get('/api/personnel/search-rescue', authenticateToken, (req, res) => {
+  db.all(
+    `SELECT sr.*, u.name as created_by_name 
+     FROM search_rescue_operations sr
+     LEFT JOIN users u ON sr.created_by = u.id
+     ORDER BY sr.created_at DESC`,
+    (err, operations) => {
+      if (err) {
+        return res.status(500).json({ error: 'Failed to fetch search and rescue operations' });
+      }
+      const parsedOperations = operations.map(op => ({
+        ...op,
+        search_area_coordinates: op.search_area_coordinates ? JSON.parse(op.search_area_coordinates) : null
+      }));
+      res.json(parsedOperations);
+    }
+  );
+});
+
+app.get('/api/public/search-rescue', (req, res) => {
+  const now = new Date().toISOString();
+  db.all(
+    `SELECT sr.* 
+     FROM search_rescue_operations sr
+     WHERE sr.is_active = 1 
+     AND sr.status IN ('active', 'in_progress')
+     ORDER BY sr.created_at DESC`,
+    (err, operations) => {
+      if (err) {
+        return res.status(500).json({ error: 'Failed to fetch search and rescue operations' });
+      }
+      const parsedOperations = operations.map(op => ({
+        ...op,
+        search_area_coordinates: op.search_area_coordinates ? JSON.parse(op.search_area_coordinates) : null
+      }));
+      res.json(parsedOperations);
+    }
+  );
+});
+
+app.post('/api/personnel/search-rescue', authenticateToken, (req, res) => {
+  const { 
+    case_number, 
+    title, 
+    description, 
+    location, 
+    latitude, 
+    longitude, 
+    status, 
+    priority,
+    missing_person_name,
+    missing_person_age,
+    missing_person_description,
+    last_seen_location,
+    last_seen_time,
+    contact_name,
+    contact_phone,
+    assigned_team,
+    search_area_coordinates
+  } = req.body;
+
+  if (!title || !location) {
+    return res.status(400).json({ error: 'Title and location are required' });
+  }
+
+  // Generate case number if not provided
+  const caseNum = case_number || `SAR-${Date.now()}`;
+  
+  // Validate coordinates if provided
+  let lat = null;
+  let lng = null;
+  if (latitude !== undefined && longitude !== undefined) {
+    lat = parseFloat(latitude);
+    lng = parseFloat(longitude);
+    if (isNaN(lat) || isNaN(lng)) {
+      return res.status(400).json({ error: 'Latitude and longitude must be valid numbers' });
+    }
+  }
+
+  // Parse search area coordinates if provided
+  let searchAreaJson = null;
+  if (search_area_coordinates) {
+    if (Array.isArray(search_area_coordinates)) {
+      searchAreaJson = JSON.stringify(search_area_coordinates);
+    } else {
+      return res.status(400).json({ error: 'Search area coordinates must be an array' });
+    }
+  }
+
+  // Parse last seen time if provided
+  let lastSeenTimeValue = null;
+  if (last_seen_time) {
+    try {
+      lastSeenTimeValue = new Date(last_seen_time).toISOString();
+    } catch (e) {
+      return res.status(400).json({ error: 'Invalid last seen time format' });
+    }
+  }
+
+  db.run(
+    `INSERT INTO search_rescue_operations (
+      case_number, title, description, location, latitude, longitude, 
+      status, priority, missing_person_name, missing_person_age, 
+      missing_person_description, last_seen_location, last_seen_time,
+      contact_name, contact_phone, assigned_team, search_area_coordinates,
+      created_by
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      caseNum, title, description || '', location, lat, lng,
+      status || 'active', priority || 'medium',
+      missing_person_name || '', missing_person_age || '',
+      missing_person_description || '', last_seen_location || '', lastSeenTimeValue,
+      contact_name || '', contact_phone || '', assigned_team || '', searchAreaJson,
+      req.user.id
+    ],
+    function(err) {
+      if (err) {
+        console.error('Database error creating SAR operation:', err);
+        return res.status(500).json({ error: err.message || 'Failed to create search and rescue operation' });
+      }
+      res.json({ 
+        success: true, 
+        message: 'Search and rescue operation created successfully',
+        operationId: this.lastID 
+      });
+    }
+  );
+});
+
+app.put('/api/personnel/search-rescue/:id', authenticateToken, (req, res) => {
+  const { id } = req.params;
+  const { 
+    title, 
+    description, 
+    location, 
+    latitude, 
+    longitude, 
+    status, 
+    priority,
+    missing_person_name,
+    missing_person_age,
+    missing_person_description,
+    last_seen_location,
+    last_seen_time,
+    contact_name,
+    contact_phone,
+    assigned_team,
+    search_area_coordinates,
+    is_active,
+    resolved_at
+  } = req.body;
+
+  const updates = [];
+  const values = [];
+
+  if (title !== undefined) {
+    updates.push('title = ?');
+    values.push(title);
+  }
+  if (description !== undefined) {
+    updates.push('description = ?');
+    values.push(description);
+  }
+  if (location !== undefined) {
+    updates.push('location = ?');
+    values.push(location);
+  }
+  if (latitude !== undefined && longitude !== undefined) {
+    const lat = parseFloat(latitude);
+    const lng = parseFloat(longitude);
+    if (isNaN(lat) || isNaN(lng)) {
+      return res.status(400).json({ error: 'Latitude and longitude must be valid numbers' });
+    }
+    updates.push('latitude = ?');
+    updates.push('longitude = ?');
+    values.push(lat, lng);
+  }
+  if (status !== undefined) {
+    updates.push('status = ?');
+    values.push(status);
+    if (status === 'resolved' || status === 'closed') {
+      updates.push('resolved_at = ?');
+      values.push(new Date().toISOString());
+    }
+  }
+  if (priority !== undefined) {
+    updates.push('priority = ?');
+    values.push(priority);
+  }
+  if (missing_person_name !== undefined) {
+    updates.push('missing_person_name = ?');
+    values.push(missing_person_name);
+  }
+  if (missing_person_age !== undefined) {
+    updates.push('missing_person_age = ?');
+    values.push(missing_person_age);
+  }
+  if (missing_person_description !== undefined) {
+    updates.push('missing_person_description = ?');
+    values.push(missing_person_description);
+  }
+  if (last_seen_location !== undefined) {
+    updates.push('last_seen_location = ?');
+    values.push(last_seen_location);
+  }
+  if (last_seen_time !== undefined) {
+    if (last_seen_time) {
+      try {
+        updates.push('last_seen_time = ?');
+        values.push(new Date(last_seen_time).toISOString());
+      } catch (e) {
+        return res.status(400).json({ error: 'Invalid last seen time format' });
+      }
+    } else {
+      updates.push('last_seen_time = ?');
+      values.push(null);
+    }
+  }
+  if (contact_name !== undefined) {
+    updates.push('contact_name = ?');
+    values.push(contact_name);
+  }
+  if (contact_phone !== undefined) {
+    updates.push('contact_phone = ?');
+    values.push(contact_phone);
+  }
+  if (assigned_team !== undefined) {
+    updates.push('assigned_team = ?');
+    values.push(assigned_team);
+  }
+  if (search_area_coordinates !== undefined) {
+    if (search_area_coordinates && Array.isArray(search_area_coordinates)) {
+      updates.push('search_area_coordinates = ?');
+      values.push(JSON.stringify(search_area_coordinates));
+    } else if (search_area_coordinates === null) {
+      updates.push('search_area_coordinates = ?');
+      values.push(null);
+    } else {
+      return res.status(400).json({ error: 'Search area coordinates must be an array or null' });
+    }
+  }
+  if (is_active !== undefined) {
+    updates.push('is_active = ?');
+    values.push(is_active ? 1 : 0);
+  }
+  if (resolved_at !== undefined) {
+    updates.push('resolved_at = ?');
+    values.push(resolved_at ? new Date(resolved_at).toISOString() : null);
+  }
+
+  if (updates.length === 0) {
+    return res.status(400).json({ error: 'No updates provided' });
+  }
+
+  updates.push('updated_at = ?');
+  values.push(new Date().toISOString());
+  values.push(id);
+
+  db.run(
+    `UPDATE search_rescue_operations SET ${updates.join(', ')} WHERE id = ?`,
+    values,
+    function(err) {
+      if (err) {
+        return res.status(500).json({ error: 'Failed to update search and rescue operation' });
+      }
+      res.json({ success: true, message: 'Search and rescue operation updated successfully' });
+    }
+  );
+});
+
+app.delete('/api/personnel/search-rescue/:id', authenticateToken, (req, res) => {
+  const { id } = req.params;
+
+  db.run('DELETE FROM search_rescue_operations WHERE id = ?', [id], function(err) {
+    if (err) {
+      return res.status(500).json({ error: 'Failed to delete search and rescue operation' });
+    }
+    res.json({ success: true, message: 'Search and rescue operation deleted successfully' });
+  });
+});
+
+// Health check endpoint to verify database and server are working
+app.get('/api/health', (req, res) => {
+  // Check if database is accessible
+  db.get('SELECT COUNT(*) as count FROM users', [], (err, result) => {
+    if (err) {
+      console.error('Database health check failed:', err);
+      return res.status(500).json({ 
+        status: 'error', 
+        message: 'Database connection failed',
+        error: err.message 
+      });
+    }
+    
+    // Check if admin user exists
+    db.get('SELECT username, role FROM users WHERE username = ?', ['admin'], (adminErr, adminUser) => {
+      res.json({ 
+        status: 'ok', 
+        message: 'Server and database are operational',
+        userCount: result.count,
+        adminUserExists: !!adminUser,
+        adminUser: adminUser || null,
+        databasePath: dbPath,
+        environment: process.env.NODE_ENV || 'development',
+        defaultCredentials: {
+          username: 'admin',
+          password: 'admin123',
+          note: 'Use these credentials if admin user exists'
+        }
+      });
+    });
+  });
+});
+
 // Push Notification Routes
 app.get('/api/public/push/vapid-key', (req, res) => {
   if (!VAPID_PUBLIC_KEY) {
@@ -1726,8 +2110,24 @@ app.listen(PORT, () => {
     }
   }
   console.log('Available routes:');
+  console.log('  POST /api/auth/login');
+  console.log('  GET /api/health (health check)');
   console.log('  POST /api/personnel/closed-areas');
   console.log('  GET /api/personnel/closed-areas');
   console.log('  GET /api/debug/build-status (diagnostic)');
+  
+  // Verify admin user after server starts
+  setTimeout(() => {
+    db.get('SELECT id, username, role FROM users WHERE username = ?', ['admin'], (err, admin) => {
+      if (err) {
+        console.error('⚠️ Error checking admin user:', err);
+      } else if (admin) {
+        console.log(`✅ Admin user verified: ID=${admin.id}, username=${admin.username}, role=${admin.role}`);
+        console.log('   Default login: username=admin, password=admin123');
+      } else {
+        console.log('⚠️ Admin user not found. It should be created automatically.');
+      }
+    });
+  }, 2000);
 });
 

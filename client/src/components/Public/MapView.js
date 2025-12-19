@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, Circle, Popup, Marker, useMap, Polyline } from 'react-leaflet';
+import { MapContainer, TileLayer, Circle, Popup, Marker, useMap, Polyline, Polygon } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { getClosedAreas, getParadeRoutes, getDetours, getClosedRoads } from '../../api/api';
+import { getClosedAreas, getParadeRoutes, getDetours, getClosedRoads, getPublicSearchRescue } from '../../api/api';
 import './MapView.css';
 
 // Fix for default marker icons in React-Leaflet
@@ -39,6 +39,7 @@ const MapView = ({ refreshTrigger }) => {
   const [paradeRoutes, setParadeRoutes] = useState([]);
   const [detours, setDetours] = useState([]);
   const [closedRoads, setClosedRoads] = useState([]);
+  const [searchRescueOps, setSearchRescueOps] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
@@ -62,16 +63,18 @@ const MapView = ({ refreshTrigger }) => {
 
   const fetchMapData = async () => {
     try {
-      const [areasRes, routesRes, detoursRes, roadsRes] = await Promise.all([
+      const [areasRes, routesRes, detoursRes, roadsRes, sarRes] = await Promise.all([
         getClosedAreas(),
         getParadeRoutes(),
         getDetours(),
-        getClosedRoads()
+        getClosedRoads(),
+        getPublicSearchRescue()
       ]);
       setClosedAreas(areasRes.data);
       setParadeRoutes(routesRes.data);
       setDetours(detoursRes.data);
       setClosedRoads(roadsRes.data);
+      setSearchRescueOps(sarRes.data || []);
     } catch (error) {
       console.error('Failed to fetch map data:', error);
     } finally {
@@ -275,6 +278,9 @@ const MapView = ({ refreshTrigger }) => {
             <p style={{ margin: 0, color: '#d1d5db' }}>
               <strong style={{ color: '#f9fafb' }}>🚫 Closed Roads:</strong> {closedRoads.length} active
             </p>
+            <p style={{ margin: '5px 0', fontSize: '14px', color: '#d1d5db' }}>
+              <strong style={{ color: '#f9fafb' }}>🔍 Search & Rescue:</strong> {searchRescueOps.length} active
+            </p>
           </div>
           <div className="map-wrapper">
             <MapContainer
@@ -439,6 +445,113 @@ const MapView = ({ refreshTrigger }) => {
                 </Polyline>
               ))}
 
+              {/* Search and Rescue Operations */}
+              {searchRescueOps.map((op) => {
+                // Create a custom icon for SAR operations
+                const sarIcon = L.divIcon({
+                  className: 'sar-marker',
+                  html: `<div style="
+                    background-color: ${op.priority === 'critical' ? '#dc2626' : op.priority === 'high' ? '#f59e0b' : '#059669'};
+                    width: 30px;
+                    height: 30px;
+                    border-radius: 50% 50% 50% 0;
+                    transform: rotate(-45deg);
+                    border: 3px solid white;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                  ">
+                    <span style="
+                      transform: rotate(45deg);
+                      color: white;
+                      font-size: 18px;
+                      font-weight: bold;
+                    ">🔍</span>
+                  </div>`,
+                  iconSize: [30, 30],
+                  iconAnchor: [15, 30],
+                  popupAnchor: [0, -30]
+                });
+
+                return (
+                  <React.Fragment key={`sar-${op.id}`}>
+                    {/* SAR Operation Marker */}
+                    {op.latitude && op.longitude && (
+                      <Marker position={[op.latitude, op.longitude]} icon={sarIcon}>
+                        <Popup>
+                          <div>
+                            <h3 style={{ margin: '0 0 10px 0', color: op.priority === 'critical' ? '#dc2626' : op.priority === 'high' ? '#f59e0b' : '#059669' }}>
+                              🔍 {op.case_number || `SAR-${op.id}`}: {op.title}
+                            </h3>
+                            <p style={{ margin: '5px 0', fontWeight: '600', color: '#f9fafb' }}>
+                              📍 {op.location}
+                            </p>
+                            {op.description && <p style={{ margin: '5px 0', color: '#d1d5db' }}>{op.description}</p>}
+                            {op.missing_person_name && (
+                              <p style={{ margin: '5px 0', color: '#d1d5db' }}>
+                                <strong>Missing Person:</strong> {op.missing_person_name}
+                                {op.missing_person_age && ` (${op.missing_person_age})`}
+                              </p>
+                            )}
+                            {op.last_seen_location && (
+                              <p style={{ margin: '5px 0', fontSize: '12px', color: '#d1d5db' }}>
+                                <strong>Last Seen:</strong> {op.last_seen_location}
+                              </p>
+                            )}
+                            <p style={{ margin: '5px 0', fontSize: '12px', color: '#d1d5db' }}>
+                              <strong>Status:</strong> {op.status || 'active'} | <strong>Priority:</strong> {op.priority || 'medium'}
+                            </p>
+                            {op.assigned_team && (
+                              <p style={{ margin: '5px 0', fontSize: '12px', color: '#d1d5db' }}>
+                                <strong>Team:</strong> {op.assigned_team}
+                              </p>
+                            )}
+                            <p style={{ margin: '10px 0 0 0', fontSize: '11px', color: '#9ca3af', fontStyle: 'italic' }}>
+                              If you have information, call 911
+                            </p>
+                          </div>
+                        </Popup>
+                      </Marker>
+                    )}
+                    {/* Search Area Polygon */}
+                    {op.search_area_coordinates && Array.isArray(op.search_area_coordinates) && op.search_area_coordinates.length > 0 && (
+                      <Polygon
+                        positions={op.search_area_coordinates}
+                        pathOptions={{
+                          color: op.priority === 'critical' ? '#dc2626' : op.priority === 'high' ? '#f59e0b' : '#059669',
+                          fillColor: op.priority === 'critical' ? '#dc2626' : op.priority === 'high' ? '#f59e0b' : '#059669',
+                          fillOpacity: 0.2,
+                          weight: 3,
+                          dashArray: '10, 5',
+                          interactive: true,
+                          bubblingMouseEvents: true
+                        }}
+                        eventHandlers={{
+                          mouseover: (e) => {
+                            e.target.setStyle({ fillOpacity: 0.3, weight: 4 });
+                          },
+                          mouseout: (e) => {
+                            e.target.setStyle({ fillOpacity: 0.2, weight: 3 });
+                          }
+                        }}
+                      >
+                        <Popup>
+                          <div>
+                            <h3 style={{ margin: '0 0 10px 0', color: op.priority === 'critical' ? '#dc2626' : op.priority === 'high' ? '#f59e0b' : '#059669' }}>
+                              🔍 Search Area: {op.title}
+                            </h3>
+                            <p style={{ margin: '5px 0', color: '#d1d5db' }}>
+                              {op.case_number || `SAR-${op.id}`}
+                            </p>
+                          </div>
+                        </Popup>
+                      </Polygon>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+
               {/* Closed Areas */}
               {closedAreas.map((area) => (
                 <Circle
@@ -477,7 +590,7 @@ const MapView = ({ refreshTrigger }) => {
               ))}
             </MapContainer>
           </div>
-          {(closedAreas.length === 0 && paradeRoutes.length === 0 && detours.length === 0 && closedRoads.length === 0 && !searchedLocation) && (
+          {(closedAreas.length === 0 && paradeRoutes.length === 0 && detours.length === 0 && closedRoads.length === 0 && searchRescueOps.length === 0 && !searchedLocation) && (
             <div className="card" style={{ marginTop: '20px' }}>
               <p style={{ textAlign: 'center', color: '#d1d5db' }}>
                 No active parade routes, detours, closed roads, or closed areas at this time. Search for a location above to view it on the map.
