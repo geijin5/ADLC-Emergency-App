@@ -801,19 +801,16 @@ app.post('/api/personnel/alerts', authenticateToken, (req, res) => {
 });
 
 // Helper function to send push notification to all subscribers
-function sendPushNotificationToAll(title, message, severity) {
+async function sendPushNotificationToAll(title, message, severity) {
   // Check if VAPID keys are configured
   if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
     console.log('Push notifications disabled: VAPID keys not configured');
     return;
   }
 
-  db.all('SELECT endpoint, p256dh, auth FROM push_subscriptions', [], (err, subscriptions) => {
-    if (err) {
-      console.error('Error fetching push subscriptions:', err);
-      return;
-    }
-
+  try {
+    const subscriptions = await all('SELECT endpoint, p256dh, auth FROM push_subscriptions');
+    
     if (subscriptions.length === 0) {
       console.log('No push subscriptions found');
       return;
@@ -848,16 +845,15 @@ function sendPushNotificationToAll(title, message, severity) {
         .then(() => {
           console.log(`✅ Push notification sent successfully to: ${sub.endpoint.substring(0, 50)}...`);
         })
-        .catch(err => {
+        .catch(async (err) => {
           // If subscription is invalid, remove it from database
           if (err.statusCode === 410 || err.statusCode === 404) {
-            db.run('DELETE FROM push_subscriptions WHERE endpoint = ?', [sub.endpoint], (deleteErr) => {
-              if (deleteErr) {
-                console.error('Error deleting invalid subscription:', deleteErr);
-              } else {
-                console.log(`🗑️ Removed invalid subscription: ${sub.endpoint.substring(0, 50)}...`);
-              }
-            });
+            try {
+              await run('DELETE FROM push_subscriptions WHERE endpoint = ?', [sub.endpoint]);
+              console.log(`🗑️ Removed invalid subscription: ${sub.endpoint.substring(0, 50)}...`);
+            } catch (deleteErr) {
+              console.error('Error deleting invalid subscription:', deleteErr);
+            }
           } else {
             console.error(`❌ Error sending push notification to ${sub.endpoint.substring(0, 50)}...:`, err.message || err);
           }
@@ -869,7 +865,9 @@ function sendPushNotificationToAll(title, message, severity) {
       const failed = results.filter(r => r.status === 'rejected').length;
       console.log(`📊 Push notification summary: ${successful} successful, ${failed} failed out of ${subscriptions.length} total`);
     });
-  });
+  } catch (err) {
+    console.error('Error fetching push subscriptions:', err);
+  }
 }
 
 app.get('/api/personnel/users', authenticateToken, (req, res) => {
@@ -2238,35 +2236,47 @@ app.post('/api/public/push/subscribe', (req, res) => {
   }
 
   // Store subscription in database
-  db.run(
-    `INSERT OR REPLACE INTO push_subscriptions (endpoint, p256dh, auth)
-     VALUES (?, ?, ?)`,
-    [subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth],
-    function(err) {
-      if (err) {
-        console.error('Error storing push subscription:', err);
-        return res.status(500).json({ error: 'Failed to store subscription' });
+  (async () => {
+    try {
+      if (isPostgres) {
+        // PostgreSQL uses INSERT ... ON CONFLICT
+        await run(
+          `INSERT INTO push_subscriptions (endpoint, p256dh, auth)
+           VALUES (?, ?, ?)
+           ON CONFLICT (endpoint) DO UPDATE SET p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth`,
+          [subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth]
+        );
+      } else {
+        // SQLite uses INSERT OR REPLACE
+        await run(
+          `INSERT OR REPLACE INTO push_subscriptions (endpoint, p256dh, auth)
+           VALUES (?, ?, ?)`,
+          [subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth]
+        );
       }
       console.log(`✅ Subscription saved successfully. Endpoint: ${subscription.endpoint.substring(0, 50)}...`);
       res.json({ success: true, message: 'Subscription saved successfully' });
+    } catch (err) {
+      console.error('Error storing push subscription:', err);
+      return res.status(500).json({ error: 'Failed to store subscription' });
     }
-  );
+  })();
 });
 
-app.post('/api/public/push/unsubscribe', (req, res) => {
+app.post('/api/public/push/unsubscribe', async (req, res) => {
   const { endpoint } = req.body;
 
   if (!endpoint) {
     return res.status(400).json({ error: 'Endpoint is required' });
   }
 
-  db.run('DELETE FROM push_subscriptions WHERE endpoint = ?', [endpoint], function(err) {
-    if (err) {
-      console.error('Error removing push subscription:', err);
-      return res.status(500).json({ error: 'Failed to remove subscription' });
-    }
+  try {
+    await run('DELETE FROM push_subscriptions WHERE endpoint = ?', [endpoint]);
     res.json({ success: true, message: 'Subscription removed successfully' });
-  });
+  } catch (err) {
+    console.error('Error removing push subscription:', err);
+    return res.status(500).json({ error: 'Failed to remove subscription' });
+  }
 });
 
 app.post('/api/personnel/push/send', authenticateToken, (req, res) => {
