@@ -870,32 +870,32 @@ async function sendPushNotificationToAll(title, message, severity) {
   }
 }
 
-app.get('/api/personnel/users', authenticateToken, (req, res) => {
+app.get('/api/personnel/users', authenticateToken, async (req, res) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Admin access required' });
   }
 
-  db.all(
-    `SELECT u.id, u.username, u.role, u.name, u.department_id, u.permissions, u.created_at, 
-            d.name as department_name, d.color as department_color
-     FROM users u
-     LEFT JOIN departments d ON u.department_id = d.id
-     ORDER BY u.created_at DESC`,
-    (err, users) => {
-      if (err) {
-        return res.status(500).json({ error: 'Failed to fetch users' });
-      }
-      // Parse permissions JSON
-      const parsedUsers = users.map(user => ({
-        ...user,
-        permissions: user.permissions ? JSON.parse(user.permissions) : null
-      }));
-      res.json(parsedUsers);
-    }
-  );
+  try {
+    const users = await all(
+      `SELECT u.id, u.username, u.role, u.name, u.department_id, u.permissions, u.created_at, 
+              d.name as department_name, d.color as department_color
+       FROM users u
+       LEFT JOIN departments d ON u.department_id = d.id
+       ORDER BY u.created_at DESC`
+    );
+    // Parse permissions JSON
+    const parsedUsers = users.map(user => ({
+      ...user,
+      permissions: user.permissions ? JSON.parse(user.permissions) : null
+    }));
+    res.json(parsedUsers);
+  } catch (err) {
+    console.error('Error fetching users:', err);
+    return res.status(500).json({ error: 'Failed to fetch users' });
+  }
 });
 
-app.post('/api/personnel/users', authenticateToken, (req, res) => {
+app.post('/api/personnel/users', authenticateToken, async (req, res) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -930,7 +930,7 @@ app.post('/api/personnel/users', authenticateToken, (req, res) => {
   );
 });
 
-app.put('/api/personnel/users/:id', authenticateToken, (req, res) => {
+app.put('/api/personnel/users/:id', authenticateToken, async (req, res) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -968,19 +968,19 @@ app.put('/api/personnel/users/:id', authenticateToken, (req, res) => {
 
   values.push(id);
 
-  db.run(
-    `UPDATE users SET ${updates.join(', ')} WHERE id = ?`,
-    values,
-    function(err) {
-      if (err) {
-        return res.status(500).json({ error: 'Failed to update user' });
-      }
-      res.json({ success: true, message: 'User updated successfully' });
-    }
-  );
+  try {
+    await run(
+      `UPDATE users SET ${updates.join(', ')} WHERE id = ?`,
+      values
+    );
+    res.json({ success: true, message: 'User updated successfully' });
+  } catch (err) {
+    console.error('Error updating user:', err);
+    return res.status(500).json({ error: 'Failed to update user' });
+  }
 });
 
-app.delete('/api/personnel/users/:id', authenticateToken, (req, res) => {
+app.delete('/api/personnel/users/:id', authenticateToken, async (req, res) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -992,12 +992,13 @@ app.delete('/api/personnel/users/:id', authenticateToken, (req, res) => {
     return res.status(400).json({ error: 'Cannot delete your own account' });
   }
 
-  db.run('DELETE FROM users WHERE id = ?', [id], function(err) {
-    if (err) {
-      return res.status(500).json({ error: 'Failed to delete user' });
-    }
+  try {
+    await run('DELETE FROM users WHERE id = ?', [id]);
     res.json({ success: true, message: 'User deleted successfully' });
-  });
+  } catch (err) {
+    console.error('Error deleting user:', err);
+    return res.status(500).json({ error: 'Failed to delete user' });
+  }
 });
 
 // Departments Management
