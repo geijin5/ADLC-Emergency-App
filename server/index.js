@@ -689,18 +689,19 @@ app.post('/api/personnel/users', authenticateToken, (req, res) => {
     return res.status(403).json({ error: 'Admin access required' });
   }
 
-  const { username, password, role, name, department_id } = req.body;
+  const { username, password, role, name, department_id, permissions } = req.body;
 
   if (!username || !password || !role || !name) {
     return res.status(400).json({ error: 'Username, password, role, and name are required' });
   }
 
   const hashedPassword = bcrypt.hashSync(password, 10);
+  const permissionsJson = permissions ? JSON.stringify(permissions) : null;
 
   db.run(
-    `INSERT INTO users (username, password, role, name, department_id)
-     VALUES (?, ?, ?, ?, ?)`,
-    [username, hashedPassword, role, name, department_id || null],
+    `INSERT INTO users (username, password, role, name, department_id, permissions)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [username, hashedPassword, role, name, department_id || null, permissionsJson],
     function(err) {
       if (err) {
         if (err.message.includes('UNIQUE constraint')) {
@@ -724,7 +725,7 @@ app.put('/api/personnel/users/:id', authenticateToken, (req, res) => {
   }
 
   const { id } = req.params;
-  const { role, name, department_id, password } = req.body;
+  const { role, name, department_id, password, permissions } = req.body;
 
   const updates = [];
   const values = [];
@@ -744,6 +745,10 @@ app.put('/api/personnel/users/:id', authenticateToken, (req, res) => {
   if (password) {
     updates.push('password = ?');
     values.push(bcrypt.hashSync(password, 10));
+  }
+  if (permissions !== undefined) {
+    updates.push('permissions = ?');
+    values.push(permissions ? JSON.stringify(permissions) : null);
   }
 
   if (updates.length === 0) {

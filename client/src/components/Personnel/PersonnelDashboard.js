@@ -32,6 +32,7 @@ const PersonnelDashboard = () => {
   const [editingRoute, setEditingRoute] = useState(null);
   const [editingDetour, setEditingDetour] = useState(null);
   const [editingClosedRoad, setEditingClosedRoad] = useState(null);
+  const [editingUser, setEditingUser] = useState(null);
   const [chatMessages, setChatMessages] = useState([]);
   const [chatMessage, setChatMessage] = useState('');
   const [selectedChatDept, setSelectedChatDept] = useState('all');
@@ -83,6 +84,8 @@ const PersonnelDashboard = () => {
     name: '',
     department_id: '',
     permissions: {
+      viewReports: true,
+      updateReports: true,
       createAlerts: false,
       manageRoutes: false,
       manageUsers: false,
@@ -214,25 +217,63 @@ const PersonnelDashboard = () => {
     });
   };
 
+  const handleEditUser = (user) => {
+    setEditingUser(user.id);
+    setUserForm({
+      username: user.username,
+      password: '', // Don't pre-fill password
+      role: user.role,
+      name: user.name,
+      department_id: user.department_id || '',
+      permissions: user.permissions || {
+        viewReports: true,
+        updateReports: true,
+        createAlerts: false,
+        manageRoutes: false,
+        manageUsers: false,
+        manageDepartments: false
+      }
+    });
+    setShowUserModal(true);
+  };
+
   const handleCreateUser = async (e) => {
     e.preventDefault();
     try {
-      if (!userForm.username || !userForm.password || !userForm.name) {
+      if (!userForm.username || !userForm.name) {
         alert('Please fill in all required fields');
         return;
       }
 
-      const response = await createUser({
+      // Password is required only when creating, not when updating
+      if (!editingUser && !userForm.password) {
+        alert('Password is required when creating a new user');
+        return;
+      }
+
+      const userData = {
         username: userForm.username.trim(),
-        password: userForm.password,
         role: userForm.role,
         name: userForm.name.trim(),
         department_id: userForm.department_id || null,
         permissions: userForm.permissions
-      });
+      };
+
+      // Only include password if it's provided (for create or update)
+      if (userForm.password) {
+        userData.password = userForm.password;
+      }
+
+      let response;
+      if (editingUser) {
+        response = await updateUser(editingUser, userData);
+      } else {
+        response = await createUser(userData);
+      }
 
       if (response.data.success) {
         setShowUserModal(false);
+        setEditingUser(null);
         setUserForm({
           username: '',
           password: '',
@@ -240,6 +281,8 @@ const PersonnelDashboard = () => {
           name: '',
           department_id: '',
           permissions: {
+            viewReports: true,
+            updateReports: true,
             createAlerts: false,
             manageRoutes: false,
             manageUsers: false,
@@ -249,9 +292,9 @@ const PersonnelDashboard = () => {
         fetchData();
       }
     } catch (error) {
-      const errorMessage = error.response?.data?.error || error.message || 'Failed to create user';
+      const errorMessage = error.response?.data?.error || error.message || (editingUser ? 'Failed to update user' : 'Failed to create user');
       alert(`Error: ${errorMessage}`);
-      console.error('Error creating user:', error);
+      console.error('Error saving user:', error);
     }
   };
 
@@ -1892,14 +1935,23 @@ const PersonnelDashboard = () => {
                               {formatDate(u.created_at)}
                             </td>
                             <td>
-                              <button
-                                onClick={() => handleDeleteUser(u.id)}
-                                className="btn btn-primary"
-                                style={{ padding: '5px 10px', fontSize: '12px', backgroundColor: '#ef4444' }}
-                                disabled={u.id === user.id}
-                              >
-                                Delete
-                              </button>
+                              <div style={{ display: 'flex', gap: '5px' }}>
+                                <button
+                                  onClick={() => handleEditUser(u)}
+                                  className="btn btn-primary"
+                                  style={{ padding: '5px 10px', fontSize: '12px' }}
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteUser(u.id)}
+                                  className="btn btn-primary"
+                                  style={{ padding: '5px 10px', fontSize: '12px', backgroundColor: '#ef4444' }}
+                                  disabled={u.id === user.id}
+                                >
+                                  Delete
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -2442,7 +2494,7 @@ const PersonnelDashboard = () => {
           zIndex: 1000
         }}>
           <div className="card" style={{ maxWidth: '700px', width: '90%', maxHeight: '90vh', overflow: 'auto' }}>
-            <h2 style={{ marginBottom: '20px', color: '#f9fafb' }}>Create New User</h2>
+            <h2 style={{ marginBottom: '20px', color: '#f9fafb' }}>{editingUser ? 'Edit User' : 'Create New User'}</h2>
             <form onSubmit={handleCreateUser}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                 <div className="form-group">
@@ -2453,16 +2505,19 @@ const PersonnelDashboard = () => {
                     value={userForm.username}
                     onChange={(e) => setUserForm({ ...userForm, username: e.target.value })}
                     required
+                    disabled={editingUser !== null}
                   />
+                  {editingUser && <small style={{ color: '#d1d5db', marginTop: '5px', display: 'block' }}>Username cannot be changed</small>}
                 </div>
                 <div className="form-group">
-                  <label>Password *</label>
+                  <label>Password {editingUser ? '(Optional - leave blank to keep current)' : '*'}</label>
                   <input
                     type="password"
                     className="input"
                     value={userForm.password}
                     onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
-                    required
+                    required={!editingUser}
+                    placeholder={editingUser ? 'Leave blank to keep current password' : ''}
                   />
                 </div>
               </div>
@@ -2575,67 +2630,109 @@ const PersonnelDashboard = () => {
                   padding: '15px',
                   backgroundColor: '#f9fafb'
                 }}>
-                  <div style={{ display: 'grid', gap: '10px' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={userForm.permissions.viewReports}
-                        onChange={() => togglePermission('viewReports')}
-                        style={{ marginRight: '10px', width: '18px', height: '18px' }}
-                      />
-                      <span>View Reports</span>
-                    </label>
-                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={userForm.permissions.updateReports}
-                        onChange={() => togglePermission('updateReports')}
-                        style={{ marginRight: '10px', width: '18px', height: '18px' }}
-                      />
-                      <span>Update Reports</span>
-                    </label>
-                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={userForm.permissions.createAlerts}
-                        onChange={() => togglePermission('createAlerts')}
-                        style={{ marginRight: '10px', width: '18px', height: '18px' }}
-                      />
-                      <span>Create Public Alerts</span>
-                    </label>
-                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={userForm.permissions.manageRoutes}
-                        onChange={() => togglePermission('manageRoutes')}
-                        style={{ marginRight: '10px', width: '18px', height: '18px' }}
-                      />
-                      <span>Manage Routes & Detours</span>
-                    </label>
-                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={userForm.permissions.manageUsers}
-                        onChange={() => togglePermission('manageUsers')}
-                        style={{ marginRight: '10px', width: '18px', height: '18px' }}
-                        disabled={userForm.role !== 'admin'}
-                      />
-                      <span style={{ opacity: userForm.role !== 'admin' ? 0.5 : 1 }}>
-                        Manage Users {userForm.role !== 'admin' && '(Admin Only)'}
-                      </span>
-                    </label>
-                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={userForm.permissions.manageDepartments}
-                        onChange={() => togglePermission('manageDepartments')}
-                        style={{ marginRight: '10px', width: '18px', height: '18px' }}
-                        disabled={userForm.role !== 'admin'}
-                      />
-                      <span style={{ opacity: userForm.role !== 'admin' ? 0.5 : 1 }}>
-                        Manage Departments {userForm.role !== 'admin' && '(Admin Only)'}
-                      </span>
-                    </label>
+                  <div style={{ display: 'grid', gap: '15px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                      <label style={{ display: 'flex', alignItems: 'flex-start', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={userForm.permissions.viewReports}
+                          onChange={() => togglePermission('viewReports')}
+                          style={{ marginRight: '10px', width: '18px', height: '18px', marginTop: '2px', flexShrink: 0 }}
+                        />
+                        <div style={{ flex: 1 }}>
+                          <span style={{ fontWeight: '600' }}>View Reports</span>
+                          <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '2px' }}>
+                            Allows the user to view emergency reports submitted by the public
+                          </div>
+                        </div>
+                      </label>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                      <label style={{ display: 'flex', alignItems: 'flex-start', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={userForm.permissions.updateReports}
+                          onChange={() => togglePermission('updateReports')}
+                          style={{ marginRight: '10px', width: '18px', height: '18px', marginTop: '2px', flexShrink: 0 }}
+                        />
+                        <div style={{ flex: 1 }}>
+                          <span style={{ fontWeight: '600' }}>Update Reports</span>
+                          <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '2px' }}>
+                            Allows the user to update the status and assign emergency reports
+                          </div>
+                        </div>
+                      </label>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                      <label style={{ display: 'flex', alignItems: 'flex-start', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={userForm.permissions.createAlerts}
+                          onChange={() => togglePermission('createAlerts')}
+                          style={{ marginRight: '10px', width: '18px', height: '18px', marginTop: '2px', flexShrink: 0 }}
+                        />
+                        <div style={{ flex: 1 }}>
+                          <span style={{ fontWeight: '600' }}>Create Public Alerts</span>
+                          <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '2px' }}>
+                            Allows the user to create and send public alerts and notifications
+                          </div>
+                        </div>
+                      </label>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                      <label style={{ display: 'flex', alignItems: 'flex-start', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={userForm.permissions.manageRoutes}
+                          onChange={() => togglePermission('manageRoutes')}
+                          style={{ marginRight: '10px', width: '18px', height: '18px', marginTop: '2px', flexShrink: 0 }}
+                        />
+                        <div style={{ flex: 1 }}>
+                          <span style={{ fontWeight: '600' }}>Manage Routes & Detours</span>
+                          <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '2px' }}>
+                            Allows the user to create, edit, and manage parade routes, detours, closed roads, and closed areas
+                          </div>
+                        </div>
+                      </label>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                      <label style={{ display: 'flex', alignItems: 'flex-start', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={userForm.permissions.manageUsers}
+                          onChange={() => togglePermission('manageUsers')}
+                          style={{ marginRight: '10px', width: '18px', height: '18px', marginTop: '2px', flexShrink: 0 }}
+                          disabled={userForm.role !== 'admin'}
+                        />
+                        <div style={{ flex: 1, opacity: userForm.role !== 'admin' ? 0.5 : 1 }}>
+                          <span style={{ fontWeight: '600' }}>
+                            Manage Users {userForm.role !== 'admin' && '(Admin Only)'}
+                          </span>
+                          <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '2px' }}>
+                            Allows the user to create, edit, and delete other user accounts (Admin role required)
+                          </div>
+                        </div>
+                      </label>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                      <label style={{ display: 'flex', alignItems: 'flex-start', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={userForm.permissions.manageDepartments}
+                          onChange={() => togglePermission('manageDepartments')}
+                          style={{ marginRight: '10px', width: '18px', height: '18px', marginTop: '2px', flexShrink: 0 }}
+                          disabled={userForm.role !== 'admin'}
+                        />
+                        <div style={{ flex: 1, opacity: userForm.role !== 'admin' ? 0.5 : 1 }}>
+                          <span style={{ fontWeight: '600' }}>
+                            Manage Departments {userForm.role !== 'admin' && '(Admin Only)'}
+                          </span>
+                          <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '2px' }}>
+                            Allows the user to create, edit, and manage departments and their colors (Admin role required)
+                          </div>
+                        </div>
+                      </label>
+                    </div>
                   </div>
                 </div>
                 <small style={{ color: '#d1d5db', marginTop: '5px', display: 'block' }}>
@@ -2645,12 +2742,13 @@ const PersonnelDashboard = () => {
 
               <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
                 <button type="submit" className="btn btn-success" style={{ flex: 1 }}>
-                  Create User
+                  {editingUser ? 'Update User' : 'Create User'}
                 </button>
                 <button
                   type="button"
                   onClick={() => {
                     setShowUserModal(false);
+                    setEditingUser(null);
                     setUserForm({
                       username: '',
                       password: '',
