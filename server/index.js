@@ -909,25 +909,24 @@ app.post('/api/personnel/users', authenticateToken, async (req, res) => {
   const hashedPassword = bcrypt.hashSync(password, 10);
   const permissionsJson = permissions ? JSON.stringify(permissions) : null;
 
-  db.run(
-    `INSERT INTO users (username, password, role, name, department_id, permissions)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [username, hashedPassword, role, name, department_id || null, permissionsJson],
-    function(err) {
-      if (err) {
-        if (err.message.includes('UNIQUE constraint')) {
-          return res.status(400).json({ error: 'Username already exists' });
-        }
-        console.error('Database error creating user:', err);
-        return res.status(500).json({ error: err.message || 'Failed to create user' });
-      }
-      res.json({ 
-        success: true, 
-        message: 'User created successfully',
-        userId: this.lastID 
-      });
+  try {
+    const result = await run(
+      `INSERT INTO users (username, password, role, name, department_id, permissions)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [username, hashedPassword, role, name, department_id || null, permissionsJson]
+    );
+    res.json({ 
+      success: true, 
+      message: 'User created successfully',
+      userId: result.lastID 
+    });
+  } catch (err) {
+    if (err.message && (err.message.includes('UNIQUE constraint') || err.message.includes('duplicate key'))) {
+      return res.status(400).json({ error: 'Username already exists' });
     }
-  );
+    console.error('Database error creating user:', err);
+    return res.status(500).json({ error: err.message || 'Failed to create user' });
+  }
 });
 
 app.put('/api/personnel/users/:id', authenticateToken, async (req, res) => {
