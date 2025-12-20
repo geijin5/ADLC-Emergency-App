@@ -2289,7 +2289,16 @@ const PersonnelDashboard = () => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
                   <label>Radius *</label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#1f2937', padding: '4px 8px', borderRadius: '6px', border: '1px solid #374151' }}>
-                    <span style={{ color: radiusUnit === 'meters' ? '#3b82f6' : '#9ca3af', fontSize: '12px', cursor: 'pointer', fontWeight: radiusUnit === 'meters' ? '600' : '400' }} onClick={() => setRadiusUnit('meters')}>Meters</span>
+                    <span style={{ color: radiusUnit === 'meters' ? '#3b82f6' : '#9ca3af', fontSize: '12px', cursor: 'pointer', fontWeight: radiusUnit === 'meters' ? '600' : '400' }} onClick={() => {
+                      if (radiusUnit !== 'meters') {
+                        const currentRadius = parseFloat(areaForm.radius) || 0;
+                        if (currentRadius > 0) {
+                          const convertedValue = (currentRadius * 1609.34).toFixed(0);
+                          setAreaForm({ ...areaForm, radius: convertedValue });
+                        }
+                        setRadiusUnit('meters');
+                      }
+                    }}>Meters</span>
                     <label style={{ position: 'relative', display: 'inline-block', width: '36px', height: '20px', margin: 0, cursor: 'pointer' }}>
                       <input
                         type="checkbox"
