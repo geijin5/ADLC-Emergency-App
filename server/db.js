@@ -88,10 +88,9 @@ function run(sql, params = []) {
         sql = sql + ' RETURNING id';
       }
       
-      db.query(sql, params, (err, result) => {
-        if (err) {
-          reject(err);
-        } else {
+      // Use promise-based query with better error handling
+      db.query(sql, params)
+        .then((result) => {
           // PostgreSQL returns different structure
           // For INSERT, get the last inserted ID from RETURNING clause
           let lastID = null;
@@ -102,8 +101,10 @@ function run(sql, params = []) {
             lastID: lastID,
             changes: result.rowCount || 0 
           });
-        }
-      });
+        })
+        .catch((err) => {
+          reject(err);
+        });
     } else {
       // SQLite
       db.run(originalSQL, params, function(err) {
