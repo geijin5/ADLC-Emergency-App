@@ -379,6 +379,28 @@ const isPostgres = dbType === 'postgres';
     )`;
   await run(pushSubsTableSQL);
 
+  // Personnel push subscriptions table (for callout notifications)
+  const personnelPushSubsTableSQL = isPostgres
+    ? `CREATE TABLE IF NOT EXISTS personnel_push_subscriptions (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      endpoint TEXT UNIQUE NOT NULL,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )`
+    : `CREATE TABLE IF NOT EXISTS personnel_push_subscriptions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      endpoint TEXT UNIQUE NOT NULL,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )`;
+  await run(personnelPushSubsTableSQL);
+
   // Chat messages table
   const chatMessagesTableSQL = isPostgres
     ? `CREATE TABLE IF NOT EXISTS chat_messages (
@@ -1694,6 +1716,10 @@ app.post('/api/personnel/callouts', authenticateToken, async (req, res) => {
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [title, message, department_id, location || '', priority || 'high', req.user.id, expiresAtValue]
     );
+    
+    // Send push notifications to personnel in the target department
+    sendPushNotificationToPersonnel(title, message, [department_id], priority || 'high');
+    
     res.json({ 
       success: true, 
       message: 'Mass callout sent successfully',
