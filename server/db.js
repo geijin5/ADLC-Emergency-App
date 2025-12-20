@@ -30,14 +30,27 @@ function initDatabase() {
       // Don't exit - let the pool handle reconnection
     });
     
-    // Test the connection
-    db.query('SELECT NOW()', (err) => {
-      if (err) {
-        console.error('PostgreSQL connection test failed:', err.message);
-      } else {
-        console.log('✅ PostgreSQL database connection established');
+    // Test the connection with retry logic
+    (async () => {
+      const maxRetries = 5;
+      const retryDelay = 1000; // 1 second
+      
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          const result = await db.query('SELECT NOW()');
+          console.log('✅ PostgreSQL database connection established');
+          break;
+        } catch (err) {
+          if (attempt === maxRetries) {
+            console.error(`❌ PostgreSQL connection test failed after ${maxRetries} attempts:`, err.message);
+            // Don't throw - let the server start and connections will be retried on first use
+          } else {
+            console.log(`⚠️ PostgreSQL connection test attempt ${attempt}/${maxRetries} failed, retrying in ${retryDelay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
+          }
+        }
       }
-    });
+    })();
   } else {
     // Use SQLite in development
     dbType = 'sqlite';
@@ -110,13 +123,13 @@ function get(sql, params = []) {
     sql = convertPlaceholders(sql, params);
     
     if (dbType === 'postgres') {
-      db.query(sql, params, (err, result) => {
-        if (err) {
-          reject(err);
-        } else {
+      db.query(sql, params)
+        .then((result) => {
           resolve(result.rows[0] || null);
-        }
-      });
+        })
+        .catch((err) => {
+          reject(err);
+        });
     } else {
       // SQLite
       db.get(sql, params, (err, row) => {
@@ -136,13 +149,13 @@ function all(sql, params = []) {
     sql = convertPlaceholders(sql, params);
     
     if (dbType === 'postgres') {
-      db.query(sql, params, (err, result) => {
-        if (err) {
-          reject(err);
-        } else {
+      db.query(sql, params)
+        .then((result) => {
           resolve(result.rows);
-        }
-      });
+        })
+        .catch((err) => {
+          reject(err);
+        });
     } else {
       // SQLite
       db.all(sql, params, (err, rows) => {

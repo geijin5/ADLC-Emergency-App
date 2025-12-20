@@ -21,11 +21,21 @@ const { db, dbType } = initDatabase();
 const isPostgres = dbType === 'postgres';
 
 // Initialize database tables
-// Add a small delay for PostgreSQL to fully establish connection
+// Add a delay for PostgreSQL to fully establish connection
 (async () => {
-  // Give PostgreSQL a moment to establish connection pool
+  // Give PostgreSQL more time to establish connection pool
   if (isPostgres) {
-    await new Promise(resolve => setTimeout(resolve, 500));
+    console.log('Waiting for PostgreSQL connection pool to initialize...');
+    await new Promise(resolve => setTimeout(resolve, 2000)); // Increased to 2 seconds
+    
+    // Test connection before proceeding with table creation
+    try {
+      await db.query('SELECT NOW()');
+      console.log('✅ PostgreSQL connection verified, proceeding with table initialization...');
+    } catch (err) {
+      console.warn('⚠️ PostgreSQL connection test failed, but continuing with table initialization...');
+      console.warn('   Connection will be retried on first database operation.');
+    }
   }
   
   await serialize(async () => {
