@@ -553,44 +553,57 @@ const isPostgres = dbType === 'postgres';
   // Create default admin user (password: admin123)
   // This runs after all tables are created
   setTimeout(async () => {
-    try {
-      const existingUser = await get('SELECT * FROM users WHERE username = ?', ['admin']);
-      
-      const defaultPassword = bcrypt.hashSync('admin123', 10);
-      
-      if (!existingUser) {
-        // Create admin user
-        const result = await run(
-          `INSERT INTO users (username, password, role, name) 
-           VALUES (?, ?, ?, ?)`,
-          ['admin', defaultPassword, 'admin', 'Administrator']
-        );
-        console.log('✅ Default admin user created: username=admin, password=admin123');
-        if (result.lastID) {
-          console.log('   User ID:', result.lastID);
-        }
-      } else {
-        // Admin exists, verify password works
-        const match = await bcrypt.compare('admin123', existingUser.password);
-        if (!match) {
-          // Password doesn't match, update it
-          console.log('Admin user exists but password is incorrect. Resetting password...');
-          await run(
-            `UPDATE users SET password = ? WHERE username = ?`,
-            [defaultPassword, 'admin']
+    const maxRetries = 5;
+    const retryDelay = 2000; // 2 seconds
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const existingUser = await get('SELECT * FROM users WHERE username = ?', ['admin']);
+        
+        const defaultPassword = bcrypt.hashSync('admin123', 10);
+        
+        if (!existingUser) {
+          // Create admin user
+          const result = await run(
+            `INSERT INTO users (username, password, role, name) 
+             VALUES (?, ?, ?, ?)`,
+            ['admin', defaultPassword, 'admin', 'Administrator']
           );
-          console.log('✅ Admin password reset: username=admin, password=admin123');
+          console.log('✅ Default admin user created: username=admin, password=admin123');
+          if (result.lastID) {
+            console.log('   User ID:', result.lastID);
+          }
+          break; // Success, exit retry loop
         } else {
-          console.log('✅ Admin user exists and password is correct');
-          console.log('   Admin user ID:', existingUser.id);
-          console.log('   Login with: username=admin, password=admin123');
+          // Admin exists, verify password works
+          const match = await bcrypt.compare('admin123', existingUser.password);
+          if (!match) {
+            // Password doesn't match, update it
+            console.log('Admin user exists but password is incorrect. Resetting password...');
+            await run(
+              `UPDATE users SET password = ? WHERE username = ?`,
+              [defaultPassword, 'admin']
+            );
+            console.log('✅ Admin password reset: username=admin, password=admin123');
+          } else {
+            console.log('✅ Admin user exists and password is correct');
+            console.log('   Admin user ID:', existingUser.id);
+            console.log('   Login with: username=admin, password=admin123');
+          }
+          break; // Success, exit retry loop
+        }
+      } catch (err) {
+        if (attempt === maxRetries) {
+          console.error('❌ Error managing admin user after', maxRetries, 'attempts:', err);
+          console.error('Error details:', err.message);
+        } else {
+          console.log(`⚠️ Admin user creation attempt ${attempt}/${maxRetries} failed, retrying in ${retryDelay}ms...`);
+          console.log('   Error:', err.message);
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
         }
       }
-    } catch (err) {
-      console.error('Error managing admin user:', err);
-      console.error('Error details:', err.message);
     }
-  }, 1000); // Wait 1 second to ensure all tables are created
+  }, 3000); // Wait 3 seconds to ensure database connection is ready
   });
 })();
 
@@ -1227,8 +1240,8 @@ app.delete('/api/personnel/departments/:id', authenticateToken, async (req, res)
 
   try {
     // Check if department is in use
-    const result = await get('SELECT COUNT(*) as count FROM users WHERE department_id = ?', [id]);
-    const count = result ? (isPostgres ? parseInt(result.count) : result.count) : 0;
+    const countResult = await all('SELECT COUNT(*) as count FROM users WHERE department_id = ?', [id]);
+    const count = countResult && countResult[0] ? (isPostgres ? parseInt(countResult[0].count) : countResult[0].count) : 0;
     if (count > 0) {
       return res.status(400).json({ error: 'Cannot delete department with assigned users' });
     }
@@ -2280,7 +2293,8 @@ app.delete('/api/personnel/search-rescue/:id', authenticateToken, async (req, re
 app.get('/api/health', async (req, res) => {
   try {
     // Check if database is accessible
-    const result = await get('SELECT COUNT(*) as count FROM users', []);
+    const countResult = await all('SELECT COUNT(*) as count FROM users');
+    const userCount = countResult && countResult[0] ? (isPostgres ? parseInt(countResult[0].count) : countResult[0].count) : 0;
     
     // Check if admin user exists
     const adminUser = await get('SELECT username, role FROM users WHERE username = ?', ['admin']);
@@ -2288,7 +2302,7 @@ app.get('/api/health', async (req, res) => {
     res.json({ 
       status: 'ok', 
       message: 'Server and database are operational',
-      userCount: result ? (isPostgres ? parseInt(result.count) : result.count) : 0,
+      userCount: userCount,
       adminUserExists: !!adminUser,
       adminUser: adminUser || null,
       environment: process.env.NODE_ENV || 'development',
