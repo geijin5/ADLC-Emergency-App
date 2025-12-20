@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Circle, Popup, Marker, useMap, Polyline, Polyg
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { getClosedAreas, getParadeRoutes, getDetours, getClosedRoads, getPublicSearchRescue } from '../../api/api';
+import OffsetPolyline from './OffsetPolyline';
 import './MapView.css';
 
 // Fix for default marker icons in React-Leaflet
@@ -353,153 +354,129 @@ const MapView = ({ refreshTrigger }) => {
               )}
 
               {/* Parade Routes */}
-              {paradeRoutes.filter(route => route.coordinates && Array.isArray(route.coordinates) && route.coordinates.length > 0).map((route, index) => (
-                <Polyline
-                  key={`route-${route.id}`}
-                  positions={route.coordinates.map(coord => 
-                    Array.isArray(coord) && coord.length === 2 
-                      ? [parseFloat(coord[0]), parseFloat(coord[1])]
-                      : coord
-                  )}
-                  pathOptions={{
-                    color: '#3b82f6',
-                    weight: 5,
-                    opacity: 0.8,
-                    interactive: true,
-                    bubblingMouseEvents: true
-                  }}
-                  eventHandlers={{
-                    mouseover: (e) => {
-                      e.target.setStyle({ weight: 7, opacity: 1 });
-                    },
-                    mouseout: (e) => {
-                      e.target.setStyle({ weight: 5, opacity: 0.8 });
-                    }
-                  }}
-                >
-                  <Popup>
-                    <div>
-                      <h3 style={{ margin: '0 0 10px 0', color: '#3b82f6' }}>🎉 {route.name}</h3>
-                      {route.address && (
-                        <p style={{ margin: '5px 0', fontWeight: '600', color: '#f9fafb' }}>
-                          📍 {route.address}
-                        </p>
-                      )}
-                      {route.crossroads && (
-                        <p style={{ margin: '5px 0', fontSize: '12px', color: '#9ca3af' }}>
-                          🚦 {route.crossroads}
-                        </p>
-                      )}
-                      {route.description && <p style={{ margin: '5px 0', color: '#d1d5db' }}>{route.description}</p>}
-                      {route.expires_at && (
-                        <p style={{ margin: '5px 0', fontSize: '12px', color: '#d1d5db' }}>
-                          Expires: {new Date(route.expires_at).toLocaleString()}
-                        </p>
-                      )}
-                    </div>
-                  </Popup>
-                </Polyline>
-              ))}
+              {paradeRoutes.filter(route => route.coordinates && Array.isArray(route.coordinates) && route.coordinates.length > 0).map((route, index) => {
+                const positions = route.coordinates.map(coord => 
+                  Array.isArray(coord) && coord.length === 2 
+                    ? [parseFloat(coord[0]), parseFloat(coord[1])]
+                    : coord
+                );
+                const popupContent = `
+                  <div>
+                    <h3 style="margin: 0 0 10px 0; color: #3b82f6;">🎉 ${route.name}</h3>
+                    ${route.address ? `<p style="margin: 5px 0; font-weight: 600; color: #f9fafb;">📍 ${route.address}</p>` : ''}
+                    ${route.crossroads ? `<p style="margin: 5px 0; font-size: 12px; color: #9ca3af;">🚦 ${route.crossroads}</p>` : ''}
+                    ${route.description ? `<p style="margin: 5px 0; color: #d1d5db;">${route.description}</p>` : ''}
+                    ${route.expires_at ? `<p style="margin: 5px 0; font-size: 12px; color: #d1d5db;">Expires: ${new Date(route.expires_at).toLocaleString()}</p>` : ''}
+                  </div>
+                `;
+                return (
+                  <OffsetPolyline
+                    key={`route-${route.id}`}
+                    positions={positions}
+                    pathOptions={{
+                      color: '#3b82f6',
+                      weight: 5,
+                      opacity: 0.8,
+                      interactive: true,
+                      bubblingMouseEvents: true
+                    }}
+                    offset={0}
+                    popupContent={popupContent}
+                    eventHandlers={{
+                      mouseover: (e) => {
+                        e.target.setStyle({ weight: 7, opacity: 1 });
+                      },
+                      mouseout: (e) => {
+                        e.target.setStyle({ weight: 5, opacity: 0.8 });
+                      }
+                    }}
+                  />
+                );
+              })}
 
               {/* Detours */}
-              {detours.filter(detour => detour.coordinates && Array.isArray(detour.coordinates) && detour.coordinates.length > 0).map((detour, index) => (
-                <Polyline
-                  key={`detour-${detour.id}`}
-                  positions={detour.coordinates.map(coord => 
-                    Array.isArray(coord) && coord.length === 2 
-                      ? [parseFloat(coord[0]), parseFloat(coord[1])]
-                      : coord
-                  )}
-                  pathOptions={{
-                    color: '#f59e0b',
-                    weight: 5,
-                    opacity: 0.8,
-                    dashArray: '10, 5',
-                    interactive: true,
-                    bubblingMouseEvents: true
-                  }}
-                  eventHandlers={{
-                    mouseover: (e) => {
-                      e.target.setStyle({ weight: 7, opacity: 1 });
-                    },
-                    mouseout: (e) => {
-                      e.target.setStyle({ weight: 5, opacity: 0.8 });
-                    }
-                  }}
-                >
-                  <Popup>
-                    <div>
-                      <h3 style={{ margin: '0 0 10px 0', color: '#f59e0b' }}>🚧 {detour.name}</h3>
-                      {detour.address && (
-                        <p style={{ margin: '5px 0', fontWeight: '600', color: '#f9fafb' }}>
-                          📍 {detour.address}
-                        </p>
-                      )}
-                      {detour.crossroads && (
-                        <p style={{ margin: '5px 0', fontSize: '12px', color: '#9ca3af' }}>
-                          🚦 {detour.crossroads}
-                        </p>
-                      )}
-                      {detour.description && <p style={{ margin: '5px 0', color: '#d1d5db' }}>{detour.description}</p>}
-                      {detour.expires_at && (
-                        <p style={{ margin: '5px 0', fontSize: '12px', color: '#d1d5db' }}>
-                          Expires: {new Date(detour.expires_at).toLocaleString()}
-                        </p>
-                      )}
-                    </div>
-                  </Popup>
-                </Polyline>
-              ))}
+              {detours.filter(detour => detour.coordinates && Array.isArray(detour.coordinates) && detour.coordinates.length > 0).map((detour, index) => {
+                const positions = detour.coordinates.map(coord => 
+                  Array.isArray(coord) && coord.length === 2 
+                    ? [parseFloat(coord[0]), parseFloat(coord[1])]
+                    : coord
+                );
+                const popupContent = `
+                  <div>
+                    <h3 style="margin: 0 0 10px 0; color: #f59e0b;">🚧 ${detour.name}</h3>
+                    ${detour.address ? `<p style="margin: 5px 0; font-weight: 600; color: #f9fafb;">📍 ${detour.address}</p>` : ''}
+                    ${detour.crossroads ? `<p style="margin: 5px 0; font-size: 12px; color: #9ca3af;">🚦 ${detour.crossroads}</p>` : ''}
+                    ${detour.description ? `<p style="margin: 5px 0; color: #d1d5db;">${detour.description}</p>` : ''}
+                    ${detour.expires_at ? `<p style="margin: 5px 0; font-size: 12px; color: #d1d5db;">Expires: ${new Date(detour.expires_at).toLocaleString()}</p>` : ''}
+                  </div>
+                `;
+                return (
+                  <OffsetPolyline
+                    key={`detour-${detour.id}`}
+                    positions={positions}
+                    pathOptions={{
+                      color: '#f59e0b',
+                      weight: 5,
+                      opacity: 0.8,
+                      dashArray: '10, 5',
+                      interactive: true,
+                      bubblingMouseEvents: true
+                    }}
+                    offset={0}
+                    popupContent={popupContent}
+                    eventHandlers={{
+                      mouseover: (e) => {
+                        e.target.setStyle({ weight: 7, opacity: 1 });
+                      },
+                      mouseout: (e) => {
+                        e.target.setStyle({ weight: 5, opacity: 0.8 });
+                      }
+                    }}
+                  />
+                );
+              })}
 
               {/* Closed Roads */}
-              {closedRoads.filter(road => road.coordinates && Array.isArray(road.coordinates) && road.coordinates.length > 0).map((road, index) => (
-                <Polyline
-                  key={`road-${road.id}`}
-                  positions={road.coordinates.map(coord => 
-                    Array.isArray(coord) && coord.length === 2 
-                      ? [parseFloat(coord[0]), parseFloat(coord[1])]
-                      : coord
-                  )}
-                  pathOptions={{
-                    color: '#dc2626',
-                    weight: 6,
-                    opacity: 0.9,
-                    dashArray: '15, 10',
-                    interactive: true,
-                    bubblingMouseEvents: true
-                  }}
-                  eventHandlers={{
-                    mouseover: (e) => {
-                      e.target.setStyle({ weight: 8, opacity: 1 });
-                    },
-                    mouseout: (e) => {
-                      e.target.setStyle({ weight: 6, opacity: 0.9 });
-                    }
-                  }}
-                >
-                  <Popup>
-                    <div>
-                      <h3 style={{ margin: '0 0 10px 0', color: '#dc2626' }}>🚫 {road.name}</h3>
-                      {road.address && (
-                        <p style={{ margin: '5px 0', fontWeight: '600', color: '#f9fafb' }}>
-                          📍 {road.address}
-                        </p>
-                      )}
-                      {road.crossroads && (
-                        <p style={{ margin: '5px 0', fontSize: '12px', color: '#9ca3af' }}>
-                          🚦 {road.crossroads}
-                        </p>
-                      )}
-                      {road.description && <p style={{ margin: '5px 0', color: '#d1d5db' }}>{road.description}</p>}
-                      {road.expires_at && (
-                        <p style={{ margin: '5px 0', fontSize: '12px', color: '#d1d5db' }}>
-                          Expires: {new Date(road.expires_at).toLocaleString()}
-                        </p>
-                      )}
-                    </div>
-                  </Popup>
-                </Polyline>
-              ))}
+              {closedRoads.filter(road => road.coordinates && Array.isArray(road.coordinates) && road.coordinates.length > 0).map((road, index) => {
+                const positions = road.coordinates.map(coord => 
+                  Array.isArray(coord) && coord.length === 2 
+                    ? [parseFloat(coord[0]), parseFloat(coord[1])]
+                    : coord
+                );
+                const popupContent = `
+                  <div>
+                    <h3 style="margin: 0 0 10px 0; color: #dc2626;">🚫 ${road.name}</h3>
+                    ${road.address ? `<p style="margin: 5px 0; font-weight: 600; color: #f9fafb;">📍 ${road.address}</p>` : ''}
+                    ${road.crossroads ? `<p style="margin: 5px 0; font-size: 12px; color: #9ca3af;">🚦 ${road.crossroads}</p>` : ''}
+                    ${road.description ? `<p style="margin: 5px 0; color: #d1d5db;">${road.description}</p>` : ''}
+                    ${road.expires_at ? `<p style="margin: 5px 0; font-size: 12px; color: #d1d5db;">Expires: ${new Date(road.expires_at).toLocaleString()}</p>` : ''}
+                  </div>
+                `;
+                return (
+                  <OffsetPolyline
+                    key={`road-${road.id}`}
+                    positions={positions}
+                    pathOptions={{
+                      color: '#dc2626',
+                      weight: 6,
+                      opacity: 0.9,
+                      dashArray: '15, 10',
+                      interactive: true,
+                      bubblingMouseEvents: true
+                    }}
+                    offset={0}
+                    popupContent={popupContent}
+                    eventHandlers={{
+                      mouseover: (e) => {
+                        e.target.setStyle({ weight: 8, opacity: 1 });
+                      },
+                      mouseout: (e) => {
+                        e.target.setStyle({ weight: 6, opacity: 0.9 });
+                      }
+                    }}
+                  />
+                );
+              })}
 
               {/* Search and Rescue Operations */}
               {searchRescueOps.map((op) => {
