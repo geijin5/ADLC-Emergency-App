@@ -39,6 +39,19 @@ export const unsubscribeFromPush = (endpoint) => {
   return api.post('/public/push/unsubscribe', { endpoint });
 };
 
+// Personnel push notification APIs
+export const getPersonnelVapidPublicKey = () => {
+  return api.get('/personnel/push/vapid-key');
+};
+
+export const subscribePersonnelToPush = (subscription) => {
+  return api.post('/personnel/push/subscribe', { subscription });
+};
+
+export const unsubscribePersonnelFromPush = (endpoint) => {
+  return api.post('/personnel/push/unsubscribe', { endpoint });
+};
+
 export const sendPushNotification = (title, message, severity) => {
   return api.post('/personnel/push/send', { title, message, severity });
 };
