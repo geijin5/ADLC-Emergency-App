@@ -70,11 +70,40 @@ const MapView = ({ refreshTrigger }) => {
         getClosedRoads(),
         getPublicSearchRescue()
       ]);
-      setClosedAreas(areasRes.data);
-      setParadeRoutes(routesRes.data);
-      setDetours(detoursRes.data);
-      setClosedRoads(roadsRes.data);
-      setSearchRescueOps(sarRes.data || []);
+      
+      // Ensure coordinates are parsed correctly (handle both string and array formats)
+      const parseCoordinates = (coords) => {
+        if (!coords) return [];
+        if (Array.isArray(coords)) return coords;
+        try {
+          return typeof coords === 'string' ? JSON.parse(coords) : coords;
+        } catch (e) {
+          console.error('Error parsing coordinates:', e, coords);
+          return [];
+        }
+      };
+      
+      setClosedAreas(areasRes.data || []);
+      setParadeRoutes((routesRes.data || []).map(route => ({
+        ...route,
+        coordinates: parseCoordinates(route.coordinates)
+      })));
+      setDetours((detoursRes.data || []).map(detour => ({
+        ...detour,
+        coordinates: parseCoordinates(detour.coordinates)
+      })));
+      setClosedRoads((roadsRes.data || []).map(road => ({
+        ...road,
+        coordinates: parseCoordinates(road.coordinates)
+      })));
+      setSearchRescueOps((sarRes.data || []).map(op => ({
+        ...op,
+        search_area_coordinates: op.search_area_coordinates 
+          ? (Array.isArray(op.search_area_coordinates) 
+              ? op.search_area_coordinates 
+              : JSON.parse(op.search_area_coordinates))
+          : null
+      })));
     } catch (error) {
       console.error('Failed to fetch map data:', error);
     } finally {
@@ -369,10 +398,14 @@ const MapView = ({ refreshTrigger }) => {
               ))}
 
               {/* Detours */}
-              {detours.map((detour, index) => (
+              {detours.filter(detour => detour.coordinates && Array.isArray(detour.coordinates) && detour.coordinates.length > 0).map((detour, index) => (
                 <Polyline
                   key={`detour-${detour.id}`}
-                  positions={detour.coordinates}
+                  positions={detour.coordinates.map(coord => 
+                    Array.isArray(coord) && coord.length === 2 
+                      ? [parseFloat(coord[0]), parseFloat(coord[1])]
+                      : coord
+                  )}
                   pathOptions={{
                     color: '#f59e0b',
                     weight: 5,
@@ -415,10 +448,14 @@ const MapView = ({ refreshTrigger }) => {
               ))}
 
               {/* Closed Roads */}
-              {closedRoads.map((road, index) => (
+              {closedRoads.filter(road => road.coordinates && Array.isArray(road.coordinates) && road.coordinates.length > 0).map((road, index) => (
                 <Polyline
                   key={`road-${road.id}`}
-                  positions={road.coordinates}
+                  positions={road.coordinates.map(coord => 
+                    Array.isArray(coord) && coord.length === 2 
+                      ? [parseFloat(coord[0]), parseFloat(coord[1])]
+                      : coord
+                  )}
                   pathOptions={{
                     color: '#dc2626',
                     weight: 6,
@@ -619,11 +656,11 @@ const MapView = ({ refreshTrigger }) => {
               })}
 
               {/* Closed Areas */}
-              {closedAreas.map((area) => (
+              {closedAreas.filter(area => area.latitude != null && area.longitude != null).map((area) => (
                 <Circle
                   key={area.id}
-                  center={[area.latitude, area.longitude]}
-                  radius={area.radius || 500}
+                  center={[parseFloat(area.latitude), parseFloat(area.longitude)]}
+                  radius={parseFloat(area.radius) || 500}
                   pathOptions={{
                     color: '#dc2626',
                     fillColor: '#dc2626',
