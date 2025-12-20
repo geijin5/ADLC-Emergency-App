@@ -78,6 +78,60 @@ self.addEventListener('fetch', function(event) {
   );
 });
 
+// Function to play alarm sound using Web Audio API
+function playAlarmSound() {
+  try {
+    // Create audio context
+    const audioContext = new (self.AudioContext || self.webkitAudioContext)();
+    
+    // Create oscillator for alarm tone
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    
+    // Connect nodes
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    // Configure alarm sound (alternating high/low tones)
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+    
+    // Gain envelope for pulsing effect
+    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+    
+    // Create pulsing alarm pattern (3 beeps)
+    const beepDuration = 0.3;
+    const pauseDuration = 0.1;
+    const totalDuration = (beepDuration + pauseDuration) * 3;
+    
+    // First beep
+    oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+    gainNode.gain.setValueAtTime(0, audioContext.currentTime + beepDuration);
+    
+    // Second beep (higher pitch)
+    oscillator.frequency.setValueAtTime(1000, audioContext.currentTime + beepDuration + pauseDuration);
+    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime + beepDuration + pauseDuration);
+    gainNode.gain.setValueAtTime(0, audioContext.currentTime + (beepDuration + pauseDuration) * 2);
+    
+    // Third beep (even higher pitch)
+    oscillator.frequency.setValueAtTime(1200, audioContext.currentTime + (beepDuration + pauseDuration) * 2);
+    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime + (beepDuration + pauseDuration) * 2);
+    gainNode.gain.setValueAtTime(0, audioContext.currentTime + totalDuration);
+    
+    // Start and stop oscillator
+    oscillator.start(audioContext.currentTime);
+    oscillator.stop(audioContext.currentTime + totalDuration);
+    
+    // Clean up after sound completes
+    setTimeout(() => {
+      audioContext.close();
+    }, totalDuration * 1000 + 100);
+  } catch (error) {
+    console.error('Error playing alarm sound:', error);
+  }
+}
+
 self.addEventListener('push', function(event) {
   console.log('Service Worker: Push event received');
   let notificationData = {
@@ -90,12 +144,23 @@ self.addEventListener('push', function(event) {
     data: {}
   };
 
+  let isCallout = false;
+
   if (event.data) {
     try {
       const data = event.data.json();
       notificationData.title = data.title || notificationData.title;
       notificationData.body = data.message || notificationData.body;
       notificationData.data = data;
+      
+      // Check if this is a callout notification
+      if (data.type === 'callout' || data.tag === 'mass-callout') {
+        isCallout = true;
+        notificationData.tag = 'mass-callout';
+        notificationData.requireInteraction = true;
+        // Play alarm sound for callout
+        playAlarmSound();
+      }
       
       // Set badge color based on severity
       if (data.severity === 'danger') {
