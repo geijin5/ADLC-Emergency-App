@@ -1292,6 +1292,9 @@ const PersonnelDashboard = () => {
 
       <div className="container">
         <h1 style={{ marginBottom: '30px', color: '#f9fafb' }}>Emergency Personnel Dashboard</h1>
+        
+        {/* Push Notification Subscription */}
+        {!loading && <PersonnelPushNotification />}
 
         {loading ? (
           <div className="card">

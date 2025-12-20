@@ -897,6 +897,88 @@ async function sendPushNotificationToAll(title, message, severity) {
   }
 }
 
+// Helper function to send push notification to personnel in specific department(s)
+async function sendPushNotificationToPersonnel(title, message, departmentIds, priority = 'high') {
+  // Check if VAPID keys are configured
+  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+    console.log('VAPID keys not configured. Skipping push notification.');
+    return;
+  }
+
+  if (!departmentIds || departmentIds.length === 0) {
+    console.log('No departments specified for push notification');
+    return;
+  }
+
+  try {
+    // Get subscriptions for users in the specified departments
+    const placeholders = departmentIds.map(() => '?').join(',');
+    const subscriptions = await all(
+      `SELECT pps.endpoint, pps.p256dh, pps.auth, u.name as user_name, d.name as department_name
+       FROM personnel_push_subscriptions pps
+       INNER JOIN users u ON pps.user_id = u.id
+       INNER JOIN departments d ON u.department_id = d.id
+       WHERE u.department_id IN (${placeholders})`,
+      departmentIds
+    );
+    
+    if (subscriptions.length === 0) {
+      console.log(`No personnel push subscriptions found for department(s): ${departmentIds.join(', ')}`);
+      return;
+    }
+
+    console.log(`Found ${subscriptions.length} personnel subscription(s) to notify for department(s): ${departmentIds.join(', ')}`);
+
+    const payload = JSON.stringify({
+      title: `🚨 MASS CALLOUT: ${title}`,
+      message: message,
+      icon: '/favicon.ico',
+      badge: '/favicon.ico',
+      tag: 'mass-callout',
+      requireInteraction: true,
+      vibrate: [200, 100, 200, 100, 200, 100, 200, 100, 200],
+      data: {
+        url: '/personnel/dashboard',
+        type: 'callout',
+        priority: priority
+      }
+    });
+
+    const notificationPromises = subscriptions.map(async (sub) => {
+      const subscription = {
+        endpoint: sub.endpoint,
+        keys: {
+          p256dh: sub.p256dh,
+          auth: sub.auth
+        }
+      };
+
+      return webpush.sendNotification(subscription, payload)
+        .then(() => {
+          console.log(`✅ Callout notification sent to ${sub.user_name} (${sub.department_name}): ${sub.endpoint.substring(0, 50)}...`);
+        })
+        .catch(async (err) => {
+          // If subscription is invalid, remove it from database
+          if (err.statusCode === 410 || err.statusCode === 404) {
+            try {
+              await run('DELETE FROM personnel_push_subscriptions WHERE endpoint = ?', [sub.endpoint]);
+              console.log(`🗑️ Removed invalid personnel subscription: ${sub.endpoint.substring(0, 50)}...`);
+            } catch (deleteErr) {
+              console.error('Error deleting invalid personnel subscription:', deleteErr);
+            }
+          } else {
+            console.error(`❌ Error sending callout notification to ${sub.endpoint.substring(0, 50)}...:`, err.message);
+          }
+        });
+    });
+
+    await Promise.allSettled(notificationPromises);
+    console.log(`✅ Callout notification process completed for ${subscriptions.length} personnel subscription(s)`);
+  } catch (err) {
+    console.error('Error sending callout push notifications:', err);
+  }
+}
+
 app.get('/api/personnel/users', authenticateToken, async (req, res) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Admin access required' });
@@ -2280,6 +2362,64 @@ app.post('/api/public/push/unsubscribe', async (req, res) => {
     res.json({ success: true, message: 'Subscription removed successfully' });
   } catch (err) {
     console.error('Error removing push subscription:', err);
+    return res.status(500).json({ error: 'Failed to remove subscription' });
+  }
+});
+
+// Personnel Push Notification Routes
+app.get('/api/personnel/push/vapid-key', authenticateToken, (req, res) => {
+  if (!VAPID_PUBLIC_KEY) {
+    console.error('VAPID_PUBLIC_KEY is not configured');
+    return res.status(503).json({ error: 'Push notifications are not configured' });
+  }
+  res.json({ publicKey: VAPID_PUBLIC_KEY });
+});
+
+app.post('/api/personnel/push/subscribe', authenticateToken, async (req, res) => {
+  const { subscription } = req.body;
+
+  if (!subscription || !subscription.endpoint || !subscription.keys) {
+    return res.status(400).json({ error: 'Invalid subscription data' });
+  }
+
+  if (!subscription.keys.p256dh || !subscription.keys.auth) {
+    return res.status(400).json({ error: 'Missing subscription keys (p256dh or auth)' });
+  }
+
+  try {
+    if (isPostgres) {
+      await run(
+        `INSERT INTO personnel_push_subscriptions (user_id, endpoint, p256dh, auth)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT (endpoint) DO UPDATE SET p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth, user_id = EXCLUDED.user_id`,
+        [req.user.id, subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth]
+      );
+    } else {
+      await run(
+        `INSERT OR REPLACE INTO personnel_push_subscriptions (user_id, endpoint, p256dh, auth)
+         VALUES (?, ?, ?, ?)`,
+        [req.user.id, subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth]
+      );
+    }
+    res.json({ success: true, message: 'Subscription saved successfully' });
+  } catch (err) {
+    console.error('Error storing personnel push subscription:', err);
+    return res.status(500).json({ error: 'Failed to store subscription' });
+  }
+});
+
+app.post('/api/personnel/push/unsubscribe', authenticateToken, async (req, res) => {
+  const { endpoint } = req.body;
+
+  if (!endpoint) {
+    return res.status(400).json({ error: 'Endpoint is required' });
+  }
+
+  try {
+    await run('DELETE FROM personnel_push_subscriptions WHERE endpoint = ? AND user_id = ?', [endpoint, req.user.id]);
+    res.json({ success: true, message: 'Subscription removed successfully' });
+  } catch (err) {
+    console.error('Error removing personnel push subscription:', err);
     return res.status(500).json({ error: 'Failed to remove subscription' });
   }
 });
