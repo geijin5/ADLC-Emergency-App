@@ -18,10 +18,14 @@ function initDatabase() {
       ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
       // Connection pool settings to prevent connection termination issues
       max: 10, // Maximum number of clients in the pool
+      min: 2, // Minimum number of clients to keep in the pool
       idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
-      connectionTimeoutMillis: 10000, // Return an error after 10 seconds if connection could not be established
+      connectionTimeoutMillis: 20000, // Increased to 20 seconds for Render
       // Handle connection errors gracefully
-      allowExitOnIdle: false
+      allowExitOnIdle: false,
+      // Keep connections alive
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10000
     });
     
     // Handle connection errors
