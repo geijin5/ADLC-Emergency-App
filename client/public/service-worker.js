@@ -115,8 +115,17 @@ self.addEventListener('push', function(event) {
 self.addEventListener('notificationclick', function(event) {
   event.notification.close();
 
+  let url = '/alerts';
+  
+  // Check if this is a callout notification
+  if (event.notification.data && event.notification.data.type === 'callout') {
+    url = '/personnel/dashboard';
+  } else if (event.notification.data && event.notification.data.url) {
+    url = event.notification.data.url;
+  }
+
   event.waitUntil(
-    clients.openWindow('/alerts')
+    clients.openWindow(url)
   );
 });
 
