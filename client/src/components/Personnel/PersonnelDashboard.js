@@ -46,6 +46,7 @@ const PersonnelDashboard = () => {
     expires_at: '',
     send_push: false
   });
+  const [radiusUnit, setRadiusUnit] = useState('meters'); // 'meters' or 'miles'
   const [areaForm, setAreaForm] = useState({
     name: '',
     description: '',
@@ -692,7 +693,7 @@ const PersonnelDashboard = () => {
 
       const lat = parseFloat(areaForm.latitude);
       const lng = parseFloat(areaForm.longitude);
-      const rad = parseFloat(areaForm.radius);
+      let rad = parseFloat(areaForm.radius);
 
       if (isNaN(lat) || isNaN(lng)) {
         alert('Latitude and longitude must be valid numbers. Try using "Find Location" if you entered an address.');
@@ -702,6 +703,11 @@ const PersonnelDashboard = () => {
       if (isNaN(rad) || rad <= 0) {
         alert('Radius must be a positive number');
         return;
+      }
+
+      // Convert to meters if input was in miles
+      if (radiusUnit === 'miles') {
+        rad = rad * 1609.34;
       }
 
       if (editingArea) {
@@ -735,13 +741,15 @@ const PersonnelDashboard = () => {
 
       setShowAreaModal(false);
       setEditingArea(null);
+      // Reset radius based on current unit
+      const defaultRadius = radiusUnit === 'miles' ? '0.31' : '500';
       setAreaForm({
         name: '',
         description: '',
         address: '',
         latitude: '46.1286',
         longitude: '-112.9422',
-        radius: '500',
+        radius: defaultRadius,
         reason: '',
         expires_at: ''
       });
@@ -766,6 +774,11 @@ const PersonnelDashboard = () => {
 
   const handleEditArea = (area) => {
     setEditingArea(area);
+    const radiusInDb = area.radius ? parseFloat(area.radius) : 500;
+    const displayRadius = radiusUnit === 'miles' 
+      ? (radiusInDb / 1609.34).toFixed(2)
+      : radiusInDb.toString();
+    
     setAreaForm({
       name: area.name || '',
       description: area.description || '',
@@ -773,7 +786,7 @@ const PersonnelDashboard = () => {
       crossroads: area.crossroads || '',
       latitude: area.latitude ? area.latitude.toString() : '46.1286',
       longitude: area.longitude ? area.longitude.toString() : '-112.9422',
-      radius: area.radius ? area.radius.toString() : '500',
+      radius: displayRadius,
       reason: area.reason || '',
       expires_at: area.expires_at ? area.expires_at.substring(0, 16) : ''
     });
@@ -1502,7 +1515,7 @@ const PersonnelDashboard = () => {
                         <th>Address/Location</th>
                         <th>Description</th>
                         <th>Coordinates</th>
-                        <th>Radius (m)</th>
+                        <th>Radius ({radiusUnit === 'miles' ? 'mi' : 'm'})</th>
                         <th>Reason</th>
                         <th>Status</th>
                         <th>Expires</th>
@@ -1525,7 +1538,12 @@ const PersonnelDashboard = () => {
                           <td style={{ fontSize: '12px' }}>
                             {area.latitude.toFixed(4)}, {area.longitude.toFixed(4)}
                           </td>
-                          <td>{area.radius}</td>
+                          <td>
+                            {radiusUnit === 'miles' 
+                              ? (parseFloat(area.radius) / 1609.34).toFixed(2) + ' mi'
+                              : area.radius + ' m'
+                            }
+                          </td>
                           <td>{area.reason || '-'}</td>
                           <td>
                             <span className={`badge badge-${area.is_active ? 'in-progress' : 'resolved'}`}>
@@ -2268,15 +2286,75 @@ const PersonnelDashboard = () => {
                 </div>
               </div>
               <div className="form-group">
-                <label>Radius (meters) *</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+                  <label>Radius *</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#1f2937', padding: '4px 8px', borderRadius: '6px', border: '1px solid #374151' }}>
+                    <span style={{ color: radiusUnit === 'meters' ? '#3b82f6' : '#9ca3af', fontSize: '12px', cursor: 'pointer', fontWeight: radiusUnit === 'meters' ? '600' : '400' }} onClick={() => setRadiusUnit('meters')}>Meters</span>
+                    <label style={{ position: 'relative', display: 'inline-block', width: '36px', height: '20px', margin: 0, cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={radiusUnit === 'miles'}
+                        onChange={(e) => {
+                          const newUnit = e.target.checked ? 'miles' : 'meters';
+                          // Convert radius value when switching units
+                          const currentRadius = parseFloat(areaForm.radius) || 0;
+                          if (currentRadius > 0) {
+                            const metersInDb = radiusUnit === 'miles' ? currentRadius * 1609.34 : currentRadius;
+                            const convertedValue = newUnit === 'miles' ? (metersInDb / 1609.34).toFixed(2) : metersInDb.toFixed(0);
+                            setAreaForm({ ...areaForm, radius: convertedValue });
+                          }
+                          setRadiusUnit(newUnit);
+                        }}
+                        style={{ opacity: 0, width: 0, height: 0 }}
+                      />
+                      <span style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        backgroundColor: radiusUnit === 'miles' ? '#3b82f6' : '#6b7280',
+                        borderRadius: '20px',
+                        transition: 'background-color 0.3s',
+                        cursor: 'pointer'
+                      }}>
+                        <span style={{
+                          position: 'absolute',
+                          height: '14px',
+                          width: '14px',
+                          left: '3px',
+                          bottom: '3px',
+                          backgroundColor: 'white',
+                          borderRadius: '50%',
+                          transition: 'transform 0.3s',
+                          transform: radiusUnit === 'miles' ? 'translateX(16px)' : 'translateX(0)'
+                        }} />
+                      </span>
+                    </label>
+                    <span style={{ color: radiusUnit === 'miles' ? '#3b82f6' : '#9ca3af', fontSize: '12px', cursor: 'pointer', fontWeight: radiusUnit === 'miles' ? '600' : '400' }} onClick={() => {
+                      if (radiusUnit !== 'miles') {
+                        const currentRadius = parseFloat(areaForm.radius) || 0;
+                        if (currentRadius > 0) {
+                          const convertedValue = (currentRadius / 1609.34).toFixed(2);
+                          setAreaForm({ ...areaForm, radius: convertedValue });
+                        }
+                        setRadiusUnit('miles');
+                      }
+                    }}>Miles</span>
+                  </div>
+                </div>
                 <input
                   type="number"
                   className="input"
+                  step={radiusUnit === 'miles' ? '0.01' : '1'}
                   value={areaForm.radius}
                   onChange={(e) => setAreaForm({ ...areaForm, radius: e.target.value })}
-                  placeholder="500"
+                  placeholder={radiusUnit === 'miles' ? '0.31' : '500'}
                   required
                 />
+                <small style={{ color: '#9ca3af', fontSize: '12px', marginTop: '4px', display: 'block' }}>
+                  Enter radius in {radiusUnit === 'miles' ? 'miles' : 'meters'}
+                </small>
               </div>
               <div className="form-group">
                 <label>Reason for Closure</label>
@@ -2306,13 +2384,14 @@ const PersonnelDashboard = () => {
                   onClick={() => {
                     setShowAreaModal(false);
                     setEditingArea(null);
+                    const defaultRadius = radiusUnit === 'miles' ? '0.31' : '500';
                     setAreaForm({
                       name: '',
                       description: '',
                       address: '',
                       latitude: '46.1286',
                       longitude: '-112.9422',
-                      radius: '500',
+                      radius: defaultRadius,
                       reason: '',
                       expires_at: ''
                     });
