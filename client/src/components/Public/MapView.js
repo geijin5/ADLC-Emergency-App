@@ -353,10 +353,14 @@ const MapView = ({ refreshTrigger }) => {
               )}
 
               {/* Parade Routes */}
-              {paradeRoutes.map((route, index) => (
+              {paradeRoutes.filter(route => route.coordinates && Array.isArray(route.coordinates) && route.coordinates.length > 0).map((route, index) => (
                 <Polyline
                   key={`route-${route.id}`}
-                  positions={route.coordinates}
+                  positions={route.coordinates.map(coord => 
+                    Array.isArray(coord) && coord.length === 2 
+                      ? [parseFloat(coord[0]), parseFloat(coord[1])]
+                      : coord
+                  )}
                   pathOptions={{
                     color: '#3b82f6',
                     weight: 5,
