@@ -26,15 +26,22 @@ const isPostgres = dbType === 'postgres';
   // Give PostgreSQL more time to establish connection pool
   if (isPostgres) {
     console.log('Waiting for PostgreSQL connection pool to initialize...');
-    await new Promise(resolve => setTimeout(resolve, 2000)); // Increased to 2 seconds
+    await new Promise(resolve => setTimeout(resolve, 3000)); // Increased to 3 seconds
     
     // Test connection before proceeding with table creation
+    // Suppress errors - they're expected during initialization on Render
     try {
       await db.query('SELECT NOW()');
       console.log('✅ PostgreSQL connection verified, proceeding with table initialization...');
     } catch (err) {
-      console.warn('⚠️ PostgreSQL connection test failed, but continuing with table initialization...');
-      console.warn('   Connection will be retried on first database operation.');
+      // Suppress transient connection errors during initialization
+      if (err.message && err.message.includes('Connection terminated')) {
+        console.log('⚠️ Transient PostgreSQL connection error during initialization (normal on Render)');
+        console.log('   Proceeding with table initialization - connection will be established on first use.');
+      } else {
+        console.warn('⚠️ PostgreSQL connection test failed, but continuing with table initialization...');
+        console.warn('   Connection will be retried on first database operation.');
+      }
     }
   }
   

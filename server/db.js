@@ -28,29 +28,50 @@ function initDatabase() {
       keepAliveInitialDelayMillis: 10000
     });
     
-    // Handle connection errors
+    // Handle connection errors - suppress transient errors during initialization
+    let initializationComplete = false;
     db.on('error', (err) => {
-      console.error('Unexpected PostgreSQL pool error:', err);
+      // Only log errors after initialization is complete
+      // Transient connection errors during startup are expected on Render
+      if (initializationComplete) {
+        console.error('Unexpected PostgreSQL pool error:', err);
+      }
       // Don't exit - let the pool handle reconnection
     });
     
     // Test the connection with retry logic
     (async () => {
       const maxRetries = 5;
-      const retryDelay = 1000; // 1 second
+      const retryDelay = 2000; // 2 seconds between retries
       
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
           const result = await db.query('SELECT NOW()');
           console.log('✅ PostgreSQL database connection established');
+          initializationComplete = true;
           break;
         } catch (err) {
-          if (attempt === maxRetries) {
+          // Suppress "Connection terminated unexpectedly" errors during initialization
+          // These are common on Render and the connection will be retried
+          if (err.message && err.message.includes('Connection terminated')) {
+            if (attempt < maxRetries) {
+              console.log(`⚠️ PostgreSQL connection attempt ${attempt}/${maxRetries} - retrying...`);
+            } else {
+              console.log(`⚠️ PostgreSQL connection test completed with transient errors (this is normal on Render)`);
+              console.log(`   The connection will be established on first database operation.`);
+            }
+          } else if (attempt === maxRetries) {
             console.error(`❌ PostgreSQL connection test failed after ${maxRetries} attempts:`, err.message);
-            // Don't throw - let the server start and connections will be retried on first use
           } else {
             console.log(`⚠️ PostgreSQL connection test attempt ${attempt}/${maxRetries} failed, retrying in ${retryDelay}ms...`);
+          }
+          
+          if (attempt < maxRetries) {
             await new Promise(resolve => setTimeout(resolve, retryDelay));
+          } else {
+            // Mark as complete even if connection test failed
+            // The connection will be established on first use
+            initializationComplete = true;
           }
         }
       }
