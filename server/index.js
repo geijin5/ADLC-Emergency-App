@@ -651,18 +651,21 @@ app.post('/api/auth/login', async (req, res) => {
   console.log('Looking up user:', username);
   
   try {
-    // First, verify database is accessible
-    await get('SELECT COUNT(*) as count FROM users');
-    
     // Database is accessible, proceed with login
     const user = await get('SELECT * FROM users WHERE username = ?', [username]);
     
     if (!user) {
       console.log('Login failed: User not found -', username);
       // Check if any users exist at all
-      const countResult = await get('SELECT COUNT(*) as count FROM users');
-      if (countResult && countResult.count === 0) {
-        console.log('⚠️ No users found in database. Default admin user may not have been created.');
+      try {
+        const countResult = await all('SELECT COUNT(*) as count FROM users');
+        const count = countResult && countResult[0] ? (isPostgres ? parseInt(countResult[0].count) : countResult[0].count) : 0;
+        if (count === 0) {
+          console.log('⚠️ No users found in database. Default admin user may not have been created.');
+          console.log('   Please wait a few seconds for admin user creation to complete, then try again.');
+        }
+      } catch (countErr) {
+        console.error('Error checking user count:', countErr);
       }
       return res.status(401).json({ error: 'Invalid credentials' });
     }
