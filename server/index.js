@@ -1952,11 +1952,14 @@ app.post('/api/personnel/chat/messages', authenticateToken, async (req, res) => 
     }
     
     let departmentName = null;
+    let isSearchAndRescue = false;
     if (department_id && department_id !== 'all') {
       // Get department name
       const dept = await get('SELECT name FROM departments WHERE id = ?', [department_id]);
       if (dept) {
         departmentName = dept.name;
+        // Check if this is the Search and Rescue department
+        isSearchAndRescue = dept.name === 'Search and Rescue';
       }
     } else {
       departmentName = 'All Departments';
@@ -1967,6 +1970,37 @@ app.post('/api/personnel/chat/messages', authenticateToken, async (req, res) => 
        VALUES (?, ?, ?, ?, ?)`,
       [message.trim(), department_id === 'all' ? null : department_id, req.user.id, user.name, departmentName]
     );
+    
+    // If message is sent to Search and Rescue department, forward it to APSAR Tracker app
+    if (isSearchAndRescue && process.env.APSAR_TRACKER_API_URL) {
+      try {
+        const apsarPayload = {
+          message: message.trim(),
+          user_name: user.name,
+          user_id: req.user.id,
+          department_name: departmentName,
+          timestamp: new Date().toISOString(),
+          source: 'ADLC Emergency App'
+        };
+        
+        const response = await fetch(process.env.APSAR_TRACKER_API_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(apsarPayload)
+        });
+        
+        if (!response.ok) {
+          console.error(`Failed to send message to APSAR Tracker: ${response.status} ${response.statusText}`);
+        } else {
+          console.log('Message successfully forwarded to APSAR Tracker app');
+        }
+      } catch (apsarError) {
+        // Log error but don't fail the chat message creation
+        console.error('Error forwarding message to APSAR Tracker:', apsarError.message);
+      }
+    }
     
     res.json({ 
       success: true, 
