@@ -723,7 +723,7 @@ app.get('/api/public/alerts', async (req, res) => {
   try {
     const query = isPostgres
       ? `SELECT * FROM public_alerts 
-         WHERE expires_at IS NULL OR expires_at > NOW()
+         WHERE expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP
          ORDER BY created_at DESC
          LIMIT 20`
       : `SELECT * FROM public_alerts 
@@ -741,19 +741,34 @@ app.get('/api/public/alerts', async (req, res) => {
 app.get('/api/public/closed-areas', async (req, res) => {
   try {
     // Query to handle both explicit true/1 and NULL (treat NULL as active since default is active)
+    // For expiration: use CURRENT_TIMESTAMP for PostgreSQL (same as NOW() but more explicit)
     const query = isPostgres
       ? `SELECT * FROM closed_areas 
          WHERE (is_active = true OR is_active IS NULL)
-         AND (expires_at IS NULL OR expires_at > NOW())
+         AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
          ORDER BY created_at DESC`
       : `SELECT * FROM closed_areas 
          WHERE (is_active = 1 OR is_active IS NULL)
          AND (expires_at IS NULL OR expires_at > datetime('now'))
          ORDER BY created_at DESC`;
+    
+    console.log(`[DEBUG] Executing closed areas query (PostgreSQL: ${isPostgres})`);
     const areas = await all(query, []);
     console.log(`[DEBUG] Public closed areas query returned ${areas.length} areas`);
     if (areas.length > 0) {
-      console.log(`[DEBUG] First area:`, { id: areas[0].id, name: areas[0].name, is_active: areas[0].is_active, latitude: areas[0].latitude, longitude: areas[0].longitude });
+      console.log(`[DEBUG] First area:`, { 
+        id: areas[0].id, 
+        name: areas[0].name, 
+        is_active: areas[0].is_active, 
+        expires_at: areas[0].expires_at,
+        latitude: areas[0].latitude, 
+        longitude: areas[0].longitude 
+      });
+    } else {
+      console.log(`[DEBUG] No areas returned. Checking total count...`);
+      const allAreas = await all('SELECT COUNT(*) as count FROM closed_areas', []);
+      const totalCount = allAreas && allAreas[0] ? (isPostgres ? parseInt(allAreas[0].count) : allAreas[0].count) : 0;
+      console.log(`[DEBUG] Total closed areas in database: ${totalCount}`);
     }
     res.json(areas);
   } catch (err) {
@@ -766,11 +781,11 @@ app.get('/api/public/parade-routes', async (req, res) => {
   try {
     const query = isPostgres
       ? `SELECT * FROM parade_routes 
-         WHERE is_active = true 
-         AND (expires_at IS NULL OR expires_at > NOW())
+         WHERE (is_active = true OR is_active IS NULL)
+         AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
          ORDER BY created_at DESC`
       : `SELECT * FROM parade_routes 
-         WHERE is_active = 1 
+         WHERE (is_active = 1 OR is_active IS NULL)
          AND (expires_at IS NULL OR expires_at > datetime('now'))
          ORDER BY created_at DESC`;
     const routes = await all(query, []);
@@ -790,11 +805,11 @@ app.get('/api/public/detours', async (req, res) => {
   try {
     const query = isPostgres
       ? `SELECT * FROM detours 
-         WHERE is_active = true 
-         AND (expires_at IS NULL OR expires_at > NOW())
+         WHERE (is_active = true OR is_active IS NULL)
+         AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
          ORDER BY created_at DESC`
       : `SELECT * FROM detours 
-         WHERE is_active = 1 
+         WHERE (is_active = 1 OR is_active IS NULL)
          AND (expires_at IS NULL OR expires_at > datetime('now'))
          ORDER BY created_at DESC`;
     const detours = await all(query, []);
@@ -814,11 +829,11 @@ app.get('/api/public/closed-roads', async (req, res) => {
   try {
     const query = isPostgres
       ? `SELECT * FROM closed_roads 
-         WHERE is_active = true 
-         AND (expires_at IS NULL OR expires_at > NOW())
+         WHERE (is_active = true OR is_active IS NULL)
+         AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
          ORDER BY created_at DESC`
       : `SELECT * FROM closed_roads 
-         WHERE is_active = 1 
+         WHERE (is_active = 1 OR is_active IS NULL)
          AND (expires_at IS NULL OR expires_at > datetime('now'))
          ORDER BY created_at DESC`;
     const roads = await all(query, []);
