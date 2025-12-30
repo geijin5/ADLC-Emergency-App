@@ -5,7 +5,7 @@ import { login } from '../../api/api';
 
 const PersonnelLogin = () => {
   const navigate = useNavigate();
-  const { login: authLogin } = useAuth();
+  const { login: authLogin, user, loading: authLoading } = useAuth();
   const [credentials, setCredentials] = useState({
     username: '',
     password: ''
@@ -13,6 +13,13 @@ const PersonnelLogin = () => {
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  // Redirect to dashboard if already logged in
+  useEffect(() => {
+    if (!authLoading && user) {
+      navigate('/personnel/dashboard');
+    }
+  }, [user, authLoading, navigate]);
 
   // Load saved username and password on component mount
   useEffect(() => {
@@ -32,6 +39,22 @@ const PersonnelLogin = () => {
       setRememberMe(true);
     }
   }, []);
+
+  // Show loading while checking authentication
+  if (authLoading) {
+    return (
+      <div className="App" style={{ 
+        background: 'linear-gradient(135deg, #dc2626 0%, #991b1b 100%)',
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#f9fafb'
+      }}>
+        <div>Loading...</div>
+      </div>
+    );
+  }
 
   const handleChange = (e) => {
     setCredentials({ ...credentials, [e.target.name]: e.target.value });

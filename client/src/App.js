@@ -9,7 +9,20 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import './App.css';
 
 function ProtectedRoute({ children }) {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+  
+  // Wait for auth to finish loading before redirecting
+  if (loading) {
+    return <div style={{ 
+      display: 'flex', 
+      justifyContent: 'center', 
+      alignItems: 'center', 
+      height: '100vh',
+      background: '#111827',
+      color: '#f9fafb'
+    }}>Loading...</div>;
+  }
+  
   return user ? children : <Navigate to="/personnel/login" />;
 }
 
