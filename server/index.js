@@ -1380,9 +1380,9 @@ app.post('/api/personnel/closed-areas', authenticateToken, async (req, res) => {
 
   try {
     const result = await run(
-      `INSERT INTO closed_areas (name, description, address, crossroads, latitude, longitude, radius, reason, created_by, expires_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [name, description || '', address || '', req.body.crossroads || '', lat, lng, rad, reason || '', req.user.id, expiresAtValue]
+      `INSERT INTO closed_areas (name, description, address, crossroads, latitude, longitude, radius, reason, created_by, expires_at, is_active)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [name, description || '', address || '', req.body.crossroads || '', lat, lng, rad, reason || '', req.user.id, expiresAtValue, isPostgres ? true : 1]
     );
     res.json({ 
       success: true, 
