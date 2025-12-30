@@ -36,6 +36,10 @@ const PersonnelDashboard = () => {
   const [chatMessages, setChatMessages] = useState([]);
   const [chatMessage, setChatMessage] = useState('');
   const [selectedChatDept, setSelectedChatDept] = useState('all');
+  const [lastChatMessageId, setLastChatMessageId] = useState(null);
+  const [lastCalloutId, setLastCalloutId] = useState(null);
+  const [newChatCount, setNewChatCount] = useState(0);
+  const [newCalloutCount, setNewCalloutCount] = useState(0);
   const [routeType, setRouteType] = useState('parade'); // 'parade' or 'detour'
   const [editingDeptColor, setEditingDeptColor] = useState(null); // Department ID being edited
   const [tempDeptColor, setTempDeptColor] = useState('#3b82f6'); // Temporary color value
@@ -136,6 +140,72 @@ const PersonnelDashboard = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Poll for new chat messages and callouts
+  useEffect(() => {
+    if (loading) return;
+    
+    const checkForUpdates = async () => {
+      try {
+        // Check for new chat messages (check all messages, not just selected department)
+        const chatRes = await getChatMessages('all');
+        const messages = chatRes.data || [];
+        if (messages.length > 0) {
+          const latestId = Math.max(...messages.map(msg => msg.id));
+          // Only update count if chat modal is closed and there are new messages
+          if (!showChatModal && lastChatMessageId !== null && latestId > lastChatMessageId) {
+            const newMessages = messages.filter(msg => msg.id > lastChatMessageId);
+            setNewChatCount(prev => prev + newMessages.length);
+          }
+          if (latestId > (lastChatMessageId || 0)) {
+            setLastChatMessageId(latestId);
+          }
+        }
+        
+        // Check for new callouts
+        const calloutsRes = await getCallouts();
+        const calloutsList = calloutsRes.data || [];
+        if (calloutsList.length > 0) {
+          const latestId = Math.max(...calloutsList.map(c => c.id));
+          if (lastCalloutId !== null && latestId > lastCalloutId) {
+            const newCallouts = calloutsList.filter(c => c.id > lastCalloutId);
+            setNewCalloutCount(prev => prev + newCallouts.length);
+          }
+          if (latestId > (lastCalloutId || 0)) {
+            setLastCalloutId(latestId);
+          }
+        }
+      } catch (error) {
+        console.error('Error checking for updates:', error);
+      }
+    };
+    
+    // Check immediately, then every 10 seconds
+    checkForUpdates();
+    const updateInterval = setInterval(checkForUpdates, 10000);
+    return () => clearInterval(updateInterval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, showChatModal]);
+
+  // Reset counts when modals are opened
+  useEffect(() => {
+    if (showChatModal) {
+      setNewChatCount(0);
+    }
+  }, [showChatModal]);
+
+  // Initialize last IDs after first data fetch
+  useEffect(() => {
+    if (!loading && callouts.length > 0 && lastCalloutId === null) {
+      const maxId = Math.max(...callouts.map(c => c.id));
+      setLastCalloutId(maxId);
+    }
+    if (!loading && chatMessages.length > 0 && lastChatMessageId === null) {
+      const maxId = Math.max(...chatMessages.map(msg => msg.id));
+      setLastChatMessageId(maxId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, callouts, chatMessages]);
+
   useEffect(() => {
     if (showChatModal) {
       fetchChatMessages();
@@ -158,7 +228,16 @@ const PersonnelDashboard = () => {
   const fetchChatMessages = async () => {
     try {
       const response = await getChatMessages(selectedChatDept);
-      setChatMessages(response.data || []);
+      const messages = response.data || [];
+      setChatMessages(messages);
+      
+      // Update last message ID
+      if (messages.length > 0) {
+        const maxId = Math.max(...messages.map(msg => msg.id));
+        if (maxId > (lastChatMessageId || 0)) {
+          setLastChatMessageId(maxId);
+        }
+      }
     } catch (error) {
       console.error('Failed to fetch chat messages:', error);
     }
@@ -198,6 +277,14 @@ const PersonnelDashboard = () => {
       setClosedRoads(roadsRes.data || []);
       setCallouts(calloutsRes.data || []);
       setSearchRescueOps(sarRes.data || []);
+      
+      // Update last IDs
+      if (calloutsRes.data && calloutsRes.data.length > 0) {
+        const maxCalloutId = Math.max(...calloutsRes.data.map(c => c.id));
+        if (maxCalloutId > (lastCalloutId || 0)) {
+          setLastCalloutId(maxCalloutId);
+        }
+      }
     } catch (error) {
       console.error('Failed to fetch data:', error);
       if (error.response?.status === 401) {
@@ -1413,16 +1500,39 @@ const PersonnelDashboard = () => {
 
             <div style={{ marginBottom: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
               <button 
-                onClick={() => setShowCalloutModal(true)} 
+                onClick={() => {
+                  setShowCalloutModal(true);
+                  setNewCalloutCount(0);
+                }} 
                 className="btn btn-primary"
                 style={{ 
                   backgroundColor: '#dc2626',
                   fontSize: '16px',
                   padding: '12px 24px',
-                  fontWeight: 'bold'
+                  fontWeight: 'bold',
+                  position: 'relative'
                 }}
               >
                 🚨 MASS CALLOUT (MCI)
+                {newCalloutCount > 0 && (
+                  <span style={{
+                    position: 'absolute',
+                    top: '-8px',
+                    right: '-8px',
+                    backgroundColor: '#ef4444',
+                    color: 'white',
+                    borderRadius: '50%',
+                    width: '24px',
+                    height: '24px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '12px',
+                    fontWeight: 'bold'
+                  }}>
+                    {newCalloutCount > 9 ? '9+' : newCalloutCount}
+                  </span>
+                )}
               </button>
               <button 
                 onClick={() => setShowAlertModal(true)} 
@@ -1431,11 +1541,33 @@ const PersonnelDashboard = () => {
                 Create Public Alert
               </button>
               <button 
-                onClick={() => setShowChatModal(true)} 
+                onClick={() => {
+                  setShowChatModal(true);
+                  setNewChatCount(0);
+                }} 
                 className="btn btn-success"
-                style={{ backgroundColor: '#8b5cf6' }}
+                style={{ backgroundColor: '#8b5cf6', position: 'relative' }}
               >
                 💬 Department Chat
+                {newChatCount > 0 && (
+                  <span style={{
+                    position: 'absolute',
+                    top: '-8px',
+                    right: '-8px',
+                    backgroundColor: '#ef4444',
+                    color: 'white',
+                    borderRadius: '50%',
+                    width: '24px',
+                    height: '24px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '12px',
+                    fontWeight: 'bold'
+                  }}>
+                    {newChatCount > 9 ? '9+' : newChatCount}
+                  </span>
+                )}
               </button>
               <button 
                 onClick={() => { setEditingSAR(null); setShowSARModal(true); }} 

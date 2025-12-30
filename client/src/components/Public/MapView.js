@@ -322,7 +322,7 @@ const MapView = ({ refreshTrigger }) => {
               maxBounds={DEER_LODGE_COUNTY_BOUNDS}
               maxBoundsViscosity={0.5}
               minZoom={9}
-              maxZoom={18}
+              maxZoom={22}
             >
               <MapUpdater center={mapCenter} zoom={mapZoom} />
               {mapType === 'satellite' ? (

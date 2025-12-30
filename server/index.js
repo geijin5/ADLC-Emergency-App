@@ -930,6 +930,83 @@ async function sendPushNotificationToAll(title, message, severity) {
   }
 }
 
+// Helper function to send chat push notifications
+async function sendChatPushNotification(senderName, message, departmentId, senderUserId) {
+  // Check if VAPID keys are configured
+  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+    return;
+  }
+
+  try {
+    let subscriptions;
+    if (departmentId) {
+      // Get subscriptions for users in the specified department, excluding sender
+      subscriptions = await all(
+        `SELECT pps.endpoint, pps.p256dh, pps.auth, u.name as user_name, d.name as department_name
+         FROM personnel_push_subscriptions pps
+         INNER JOIN users u ON pps.user_id = u.id
+         INNER JOIN departments d ON u.department_id = d.id
+         WHERE u.department_id = ? AND u.id != ?`,
+        [departmentId, senderUserId]
+      );
+    } else {
+      // Get all subscriptions except sender
+      subscriptions = await all(
+        `SELECT pps.endpoint, pps.p256dh, pps.auth, u.name as user_name, d.name as department_name
+         FROM personnel_push_subscriptions pps
+         INNER JOIN users u ON pps.user_id = u.id
+         INNER JOIN departments d ON u.department_id = d.id
+         WHERE u.id != ?`,
+        [senderUserId]
+      );
+    }
+    
+    if (subscriptions.length === 0) {
+      return;
+    }
+
+    const payload = JSON.stringify({
+      title: `💬 New Chat Message from ${senderName}`,
+      message: message.length > 100 ? message.substring(0, 100) + '...' : message,
+      icon: '/favicon.ico',
+      badge: '/favicon.ico',
+      tag: 'chat-message',
+      requireInteraction: false,
+      data: {
+        url: '/personnel/dashboard',
+        type: 'chat',
+        sender: senderName
+      }
+    });
+
+    const notificationPromises = subscriptions.map(async (sub) => {
+      const subscription = {
+        endpoint: sub.endpoint,
+        keys: {
+          p256dh: sub.p256dh,
+          auth: sub.auth
+        }
+      };
+
+      return webpush.sendNotification(subscription, payload)
+        .catch(async (err) => {
+          // If subscription is invalid, remove it from database
+          if (err.statusCode === 410 || err.statusCode === 404) {
+            try {
+              await run('DELETE FROM personnel_push_subscriptions WHERE endpoint = ?', [sub.endpoint]);
+            } catch (deleteErr) {
+              console.error('Error deleting invalid personnel subscription:', deleteErr);
+            }
+          }
+        });
+    });
+
+    await Promise.allSettled(notificationPromises);
+  } catch (err) {
+    console.error('Error sending chat push notifications:', err);
+  }
+}
+
 // Helper function to send push notification to personnel in specific department(s)
 async function sendPushNotificationToPersonnel(title, message, departmentIds, priority = 'high') {
   // Check if VAPID keys are configured
@@ -2000,6 +2077,15 @@ app.post('/api/personnel/chat/messages', authenticateToken, async (req, res) => 
         // Log error but don't fail the chat message creation
         console.error('Error forwarding message to APSAR Tracker:', apsarError.message);
       }
+    }
+    
+    // Send push notifications for new chat message
+    // Don't notify the sender
+    if (department_id && department_id !== 'all') {
+      sendChatPushNotification(user.name, message.trim(), department_id, req.user.id);
+    } else {
+      // For 'all departments', send to all personnel except sender
+      sendChatPushNotification(user.name, message.trim(), null, req.user.id);
     }
     
     res.json({ 
