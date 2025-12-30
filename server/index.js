@@ -157,7 +157,8 @@ const isPostgres = dbType === 'postgres';
     { name: 'Police', description: 'Police Department', color: '#3b82f6' },
     { name: 'EMS', description: 'Emergency Medical Services', color: '#10b981' },
     { name: 'Dispatch', description: 'Dispatch Center', color: '#f59e0b' },
-    { name: 'Search and Rescue', description: 'Search and Rescue Team', color: '#059669' }
+    { name: 'Search and Rescue', description: 'Search and Rescue Team', color: '#059669' },
+    { name: 'County Attorney', description: 'County Attorney Office', color: '#7c3aed' }
   ];
   
   for (const dept of defaultDepts) {

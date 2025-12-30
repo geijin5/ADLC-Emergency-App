@@ -5,6 +5,7 @@ import PublicAlerts from './components/Public/PublicAlerts';
 import SearchAndRescue from './components/Public/SearchAndRescue';
 import PersonnelLogin from './components/Personnel/PersonnelLogin';
 import PersonnelDashboard from './components/Personnel/PersonnelDashboard';
+import CountyAttorneyDashboard from './components/CountyAttorney/CountyAttorneyDashboard';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import './App.css';
 
@@ -40,6 +41,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <PersonnelDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/county-attorney/dashboard"
+            element={
+              <ProtectedRoute>
+                <CountyAttorneyDashboard />
               </ProtectedRoute>
             }
           />

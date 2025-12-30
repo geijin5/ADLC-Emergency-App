@@ -1391,7 +1391,18 @@ const PersonnelDashboard = () => {
       </nav>
 
       <div className="container">
-        <h1 style={{ marginBottom: '30px', color: '#f9fafb' }}>Emergency Personnel Dashboard</h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+          <h1 style={{ margin: 0, color: '#f9fafb' }}>Emergency Personnel Dashboard</h1>
+          {user?.department_name === 'County Attorney' && (
+            <button
+              onClick={() => navigate('/county-attorney/dashboard')}
+              className="btn btn-primary"
+              style={{ backgroundColor: '#7c3aed', padding: '10px 20px' }}
+            >
+              ⚖️ County Attorney Dashboard
+            </button>
+          )}
+        </div>
         
         {/* Push Notification Subscription */}
         {!loading && <PersonnelPushNotification />}
