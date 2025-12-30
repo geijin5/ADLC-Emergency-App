@@ -951,6 +951,13 @@ async function sendChatPushNotification(senderName, message, departmentId, sende
   try {
     let subscriptions;
     if (departmentId) {
+      // Ensure departmentId is an integer
+      const deptIdInt = typeof departmentId === 'number' ? departmentId : parseInt(departmentId, 10);
+      if (isNaN(deptIdInt)) {
+        console.error('Invalid department ID for push notification:', departmentId);
+        return;
+      }
+      
       // Get subscriptions for users in the specified department, excluding sender
       subscriptions = await all(
         `SELECT pps.endpoint, pps.p256dh, pps.auth, u.name as user_name, d.name as department_name
@@ -958,7 +965,7 @@ async function sendChatPushNotification(senderName, message, departmentId, sende
          INNER JOIN users u ON pps.user_id = u.id
          INNER JOIN departments d ON u.department_id = d.id
          WHERE u.department_id = ? AND u.id != ?`,
-        [departmentId, senderUserId]
+        [deptIdInt, senderUserId]
       );
     } else {
       // Get all subscriptions except sender
@@ -1997,6 +2004,12 @@ app.get('/api/personnel/chat/messages', authenticateToken, async (req, res) => {
   let params;
   
   if (department_id && department_id !== 'all') {
+    // Convert department_id to integer for proper database comparison
+    const deptIdInt = parseInt(department_id, 10);
+    if (isNaN(deptIdInt)) {
+      return res.status(400).json({ error: 'Invalid department ID' });
+    }
+    
     // Get messages for specific department
     query = `SELECT cm.*, u.department_id as user_dept_id, d.color as department_color
              FROM chat_messages cm
@@ -2004,7 +2017,7 @@ app.get('/api/personnel/chat/messages', authenticateToken, async (req, res) => {
              LEFT JOIN departments d ON cm.department_id = d.id
              WHERE cm.department_id = ?
              ORDER BY cm.created_at ASC`;
-    params = [department_id];
+    params = [deptIdInt];
   } else {
     // Get all messages (for 'all' or no filter)
     query = `SELECT cm.*, u.department_id as user_dept_id, d.color as department_color
@@ -2039,15 +2052,26 @@ app.post('/api/personnel/chat/messages', authenticateToken, async (req, res) => 
       return res.status(404).json({ error: 'User not found' });
     }
     
+    // Convert department_id to integer if it's not 'all'
+    let deptIdInt = null;
+    if (department_id && department_id !== 'all') {
+      deptIdInt = parseInt(department_id, 10);
+      if (isNaN(deptIdInt)) {
+        return res.status(400).json({ error: 'Invalid department ID' });
+      }
+    }
+    
     let departmentName = null;
     let isSearchAndRescue = false;
-    if (department_id && department_id !== 'all') {
+    if (deptIdInt) {
       // Get department name
-      const dept = await get('SELECT name FROM departments WHERE id = ?', [department_id]);
+      const dept = await get('SELECT name FROM departments WHERE id = ?', [deptIdInt]);
       if (dept) {
         departmentName = dept.name;
         // Check if this is the Search and Rescue department
         isSearchAndRescue = dept.name === 'Search and Rescue';
+      } else {
+        return res.status(400).json({ error: 'Department not found' });
       }
     } else {
       departmentName = 'All Departments';
@@ -2056,7 +2080,7 @@ app.post('/api/personnel/chat/messages', authenticateToken, async (req, res) => 
     const result = await run(
       `INSERT INTO chat_messages (message, department_id, user_id, user_name, department_name)
        VALUES (?, ?, ?, ?, ?)`,
-      [message.trim(), department_id === 'all' ? null : department_id, req.user.id, user.name, departmentName]
+      [message.trim(), deptIdInt, req.user.id, user.name, departmentName]
     );
     
     // If message is sent to Search and Rescue department, forward it to APSAR Tracker app
@@ -2092,8 +2116,8 @@ app.post('/api/personnel/chat/messages', authenticateToken, async (req, res) => 
     
     // Send push notifications for new chat message
     // Don't notify the sender
-    if (department_id && department_id !== 'all') {
-      sendChatPushNotification(user.name, message.trim(), department_id, req.user.id);
+    if (deptIdInt) {
+      sendChatPushNotification(user.name, message.trim(), deptIdInt, req.user.id);
     } else {
       // For 'all departments', send to all personnel except sender
       sendChatPushNotification(user.name, message.trim(), null, req.user.id);
