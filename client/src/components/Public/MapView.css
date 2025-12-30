@@ -27,20 +27,54 @@
   border-radius: 8px;
   background-color: #1f2937;
   color: #f9fafb;
+  max-width: 300px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
 }
 
 .leaflet-popup-content {
   color: #f9fafb;
+  margin: 15px;
+  max-width: 270px;
+  word-wrap: break-word;
 }
 
 .leaflet-popup-content h3 {
   font-size: 16px;
   font-weight: 600;
   color: #f9fafb;
+  margin: 0 0 10px 0;
+  word-wrap: break-word;
 }
 
 .leaflet-popup-tip {
   background-color: #1f2937;
+}
+
+/* Ensure popups stack properly with z-index */
+.leaflet-popup {
+  z-index: 1000;
+}
+
+.leaflet-popup-pane {
+  z-index: 1000;
+}
+
+/* Layer ordering - markers on top, then lines, then areas */
+.leaflet-marker-pane {
+  z-index: 600;
+}
+
+.leaflet-overlay-pane {
+  z-index: 400;
+}
+
+.leaflet-shadow-pane {
+  z-index: 500;
+}
+
+/* SAR marker styling */
+.sar-marker {
+  z-index: 601 !important;
 }
 
 /* Search form styling */

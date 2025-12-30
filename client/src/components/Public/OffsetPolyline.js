@@ -26,7 +26,13 @@ const OffsetPolyline = ({ positions, pathOptions, offset = 0, popupContent, even
 
     // Add popup if content provided
     if (popupContent) {
-      polyline.bindPopup(popupContent);
+      polyline.bindPopup(popupContent, {
+        maxWidth: 300,
+        autoPan: true,
+        autoPanPadding: [50, 50],
+        closeButton: true,
+        className: 'custom-popup'
+      });
     }
 
     // Add event handlers

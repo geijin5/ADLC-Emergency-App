@@ -340,7 +340,7 @@ const MapView = ({ refreshTrigger }) => {
               {/* Searched Location Marker */}
               {searchedLocation && (
                 <Marker position={[searchedLocation.lat, searchedLocation.lng]}>
-                  <Popup>
+                  <Popup maxWidth={300} autoPan={true} autoPanPadding={[50, 50]} closeButton={true}>
                     <div>
                       <h3 style={{ margin: '0 0 10px 0', color: '#3b82f6' }}>
                         🔍 {searchedLocation.name}
@@ -527,8 +527,8 @@ const MapView = ({ refreshTrigger }) => {
                   <React.Fragment key={`sar-${op.id}`}>
                     {/* SAR Operation Marker */}
                     {op.latitude && op.longitude && (
-                      <Marker position={[op.latitude, op.longitude]} icon={sarIcon}>
-                        <Popup>
+                      <Marker position={[op.latitude, op.longitude]} icon={sarIcon} zIndexOffset={1000}>
+                        <Popup maxWidth={300} autoPan={true} autoPanPadding={[50, 50]} closeButton={true}>
                           <div>
                             <h3 style={{ margin: '0 0 10px 0', color: markerColor }}>
                               {op.status === 'training' ? '🎓' : '🔍'} {op.case_number || `SAR-${op.id}`}: {op.title}
@@ -605,8 +605,9 @@ const MapView = ({ refreshTrigger }) => {
                             e.target.setStyle({ fillOpacity: op.status === 'training' ? 0.15 : 0.2, weight: 3 });
                           }
                         }}
+                        pane="overlayPane"
                       >
-                        <Popup>
+                        <Popup maxWidth={300} autoPan={true} autoPanPadding={[50, 50]} closeButton={true}>
                           <div>
                             <h3 style={{ margin: '0 0 10px 0', color: markerColor }}>
                               {op.status === 'training' ? '🎓' : '🔍'} Search Area: {op.title}
@@ -645,11 +646,21 @@ const MapView = ({ refreshTrigger }) => {
                   pathOptions={{
                     color: '#dc2626',
                     fillColor: '#dc2626',
-                    fillOpacity: 0.3,
-                    weight: 2
+                    fillOpacity: 0.25,
+                    weight: 2,
+                    interactive: true,
+                    bubblingMouseEvents: true
+                  }}
+                  eventHandlers={{
+                    mouseover: (e) => {
+                      e.target.setStyle({ fillOpacity: 0.35, weight: 3 });
+                    },
+                    mouseout: (e) => {
+                      e.target.setStyle({ fillOpacity: 0.25, weight: 2 });
+                    }
                   }}
                 >
-                  <Popup>
+                  <Popup maxWidth={300} autoPan={true} autoPanPadding={[50, 50]} closeButton={true}>
                     <div>
                       <h3 style={{ margin: '0 0 10px 0', color: '#dc2626' }}>{area.name}</h3>
                       {area.address && (
