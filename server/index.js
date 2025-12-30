@@ -720,15 +720,17 @@ app.post('/api/auth/login', async (req, res) => {
 
 // Public Routes
 app.get('/api/public/alerts', async (req, res) => {
-  const now = new Date().toISOString();
   try {
-    const alerts = await all(
-      `SELECT * FROM public_alerts 
-       WHERE expires_at IS NULL OR expires_at > ?
-       ORDER BY created_at DESC
-       LIMIT 20`,
-      [now]
-    );
+    const query = isPostgres
+      ? `SELECT * FROM public_alerts 
+         WHERE expires_at IS NULL OR expires_at > NOW()
+         ORDER BY created_at DESC
+         LIMIT 20`
+      : `SELECT * FROM public_alerts 
+         WHERE expires_at IS NULL OR expires_at > datetime('now')
+         ORDER BY created_at DESC
+         LIMIT 20`;
+    const alerts = await all(query, []);
     res.json(alerts);
   } catch (err) {
     console.error('Error fetching alerts:', err);
@@ -737,15 +739,17 @@ app.get('/api/public/alerts', async (req, res) => {
 });
 
 app.get('/api/public/closed-areas', async (req, res) => {
-  const now = new Date().toISOString();
   try {
-    const areas = await all(
-      `SELECT * FROM closed_areas 
-       WHERE is_active = ${isPostgres ? 'true' : '1'} 
-       AND (expires_at IS NULL OR expires_at > ?)
-       ORDER BY created_at DESC`,
-      [now]
-    );
+    const query = isPostgres
+      ? `SELECT * FROM closed_areas 
+         WHERE is_active = true 
+         AND (expires_at IS NULL OR expires_at > NOW())
+         ORDER BY created_at DESC`
+      : `SELECT * FROM closed_areas 
+         WHERE is_active = 1 
+         AND (expires_at IS NULL OR expires_at > datetime('now'))
+         ORDER BY created_at DESC`;
+    const areas = await all(query, []);
     res.json(areas);
   } catch (err) {
     console.error('Error fetching closed areas:', err);
@@ -754,15 +758,17 @@ app.get('/api/public/closed-areas', async (req, res) => {
 });
 
 app.get('/api/public/parade-routes', async (req, res) => {
-  const now = new Date().toISOString();
   try {
-    const routes = await all(
-      `SELECT * FROM parade_routes 
-       WHERE is_active = ${isPostgres ? 'true' : '1'} 
-       AND (expires_at IS NULL OR expires_at > ?)
-       ORDER BY created_at DESC`,
-      [now]
-    );
+    const query = isPostgres
+      ? `SELECT * FROM parade_routes 
+         WHERE is_active = true 
+         AND (expires_at IS NULL OR expires_at > NOW())
+         ORDER BY created_at DESC`
+      : `SELECT * FROM parade_routes 
+         WHERE is_active = 1 
+         AND (expires_at IS NULL OR expires_at > datetime('now'))
+         ORDER BY created_at DESC`;
+    const routes = await all(query, []);
     // Parse coordinates JSON
     const parsedRoutes = routes.map(route => ({
       ...route,
@@ -776,15 +782,17 @@ app.get('/api/public/parade-routes', async (req, res) => {
 });
 
 app.get('/api/public/detours', async (req, res) => {
-  const now = new Date().toISOString();
   try {
-    const detours = await all(
-      `SELECT * FROM detours 
-       WHERE is_active = ${isPostgres ? 'true' : '1'} 
-       AND (expires_at IS NULL OR expires_at > ?)
-       ORDER BY created_at DESC`,
-      [now]
-    );
+    const query = isPostgres
+      ? `SELECT * FROM detours 
+         WHERE is_active = true 
+         AND (expires_at IS NULL OR expires_at > NOW())
+         ORDER BY created_at DESC`
+      : `SELECT * FROM detours 
+         WHERE is_active = 1 
+         AND (expires_at IS NULL OR expires_at > datetime('now'))
+         ORDER BY created_at DESC`;
+    const detours = await all(query, []);
     // Parse coordinates JSON
     const parsedDetours = detours.map(detour => ({
       ...detour,
@@ -798,15 +806,17 @@ app.get('/api/public/detours', async (req, res) => {
 });
 
 app.get('/api/public/closed-roads', async (req, res) => {
-  const now = new Date().toISOString();
   try {
-    const roads = await all(
-      `SELECT * FROM closed_roads 
-       WHERE is_active = ${isPostgres ? 'true' : '1'} 
-       AND (expires_at IS NULL OR expires_at > ?)
-       ORDER BY created_at DESC`,
-      [now]
-    );
+    const query = isPostgres
+      ? `SELECT * FROM closed_roads 
+         WHERE is_active = true 
+         AND (expires_at IS NULL OR expires_at > NOW())
+         ORDER BY created_at DESC`
+      : `SELECT * FROM closed_roads 
+         WHERE is_active = 1 
+         AND (expires_at IS NULL OR expires_at > datetime('now'))
+         ORDER BY created_at DESC`;
+    const roads = await all(query, []);
     // Parse coordinates JSON
     const parsedRoads = roads.map(road => ({
       ...road,
