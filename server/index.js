@@ -740,13 +740,14 @@ app.get('/api/public/alerts', async (req, res) => {
 
 app.get('/api/public/closed-areas', async (req, res) => {
   try {
+    // Query to handle both explicit true/1 and NULL (treat NULL as active since default is active)
     const query = isPostgres
       ? `SELECT * FROM closed_areas 
-         WHERE is_active = true 
+         WHERE (is_active = true OR is_active IS NULL)
          AND (expires_at IS NULL OR expires_at > NOW())
          ORDER BY created_at DESC`
       : `SELECT * FROM closed_areas 
-         WHERE is_active = 1 
+         WHERE (is_active = 1 OR is_active IS NULL)
          AND (expires_at IS NULL OR expires_at > datetime('now'))
          ORDER BY created_at DESC`;
     const areas = await all(query, []);
