@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { login } from '../../api/api';
@@ -10,8 +10,28 @@ const PersonnelLogin = () => {
     username: '',
     password: ''
   });
+  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  // Load saved username and password on component mount
+  useEffect(() => {
+    const savedUsername = localStorage.getItem('saved_username');
+    const savedPassword = localStorage.getItem('saved_password');
+    if (savedUsername) {
+      setCredentials(prev => ({
+        ...prev,
+        username: savedUsername
+      }));
+    }
+    if (savedPassword) {
+      setCredentials(prev => ({
+        ...prev,
+        password: savedPassword
+      }));
+      setRememberMe(true);
+    }
+  }, []);
 
   const handleChange = (e) => {
     setCredentials({ ...credentials, [e.target.name]: e.target.value });
@@ -28,6 +48,17 @@ const PersonnelLogin = () => {
       const response = await login(credentials);
       console.log('Login response received:', response.data);
       authLogin(response.data.token, response.data.user);
+      
+      // Save credentials if remember me is checked
+      if (rememberMe) {
+        localStorage.setItem('saved_username', credentials.username);
+        localStorage.setItem('saved_password', credentials.password);
+      } else {
+        // Clear saved credentials if remember me is unchecked
+        localStorage.removeItem('saved_username');
+        localStorage.removeItem('saved_password');
+      }
+      
       navigate('/personnel/dashboard');
     } catch (err) {
       console.error('Login error:', err);
@@ -107,6 +138,24 @@ const PersonnelLogin = () => {
               required
               autoComplete="current-password"
             />
+          </div>
+
+          <div className="form-group" style={{ display: 'flex', alignItems: 'center', marginTop: '10px' }}>
+            <input
+              type="checkbox"
+              id="rememberMe"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              style={{
+                width: '18px',
+                height: '18px',
+                marginRight: '8px',
+                cursor: 'pointer'
+              }}
+            />
+            <label htmlFor="rememberMe" style={{ margin: 0, cursor: 'pointer', color: '#d1d5db', fontSize: '14px' }}>
+              Remember username and password
+            </label>
           </div>
 
           <button 
