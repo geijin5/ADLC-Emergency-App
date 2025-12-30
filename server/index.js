@@ -750,6 +750,10 @@ app.get('/api/public/closed-areas', async (req, res) => {
          AND (expires_at IS NULL OR expires_at > datetime('now'))
          ORDER BY created_at DESC`;
     const areas = await all(query, []);
+    console.log(`[DEBUG] Public closed areas query returned ${areas.length} areas`);
+    if (areas.length > 0) {
+      console.log(`[DEBUG] First area:`, { id: areas[0].id, name: areas[0].name, is_active: areas[0].is_active, latitude: areas[0].latitude, longitude: areas[0].longitude });
+    }
     res.json(areas);
   } catch (err) {
     console.error('Error fetching closed areas:', err);
@@ -1396,15 +1400,23 @@ app.post('/api/personnel/closed-areas', authenticateToken, async (req, res) => {
   }
 
   try {
+    const isActiveValue = isPostgres ? true : 1;
+    console.log(`[DEBUG] Creating closed area: name=${name}, lat=${lat}, lng=${lng}, is_active=${isActiveValue}`);
+    
     const result = await run(
       `INSERT INTO closed_areas (name, description, address, crossroads, latitude, longitude, radius, reason, created_by, expires_at, is_active)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [name, description || '', address || '', req.body.crossroads || '', lat, lng, rad, reason || '', req.user.id, expiresAtValue, isPostgres ? true : 1]
+      [name, description || '', address || '', req.body.crossroads || '', lat, lng, rad, reason || '', req.user.id, expiresAtValue, isActiveValue]
     );
+    
+    // Verify the area was created correctly
+    const createdArea = await get('SELECT id, name, is_active, latitude, longitude FROM closed_areas WHERE id = ?', [result.lastID || result.insertId]);
+    console.log(`[DEBUG] Created closed area:`, createdArea);
+    
     res.json({ 
       success: true, 
       message: 'Closed area created successfully',
-      areaId: result.lastID 
+      areaId: result.lastID || result.insertId 
     });
   } catch (err) {
     console.error('Database error creating closed area:', err);
