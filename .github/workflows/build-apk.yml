@@ -148,8 +148,17 @@ jobs:
               echo "print('Added Kotlin dependency exclusions')" >> /tmp/fix_kotlin.py
               python3 /tmp/fix_kotlin.py
               rm -f /tmp/fix_kotlin.py
+              echo "Verifying fix was applied..."
+              if grep -q "configurations.all" android/app/build.gradle; then
+                echo "✅ Kotlin dependency exclusions verified in build.gradle"
+                grep -A 3 "configurations.all" android/app/build.gradle || true
+              else
+                echo "❌ Failed to add Kotlin dependency exclusions"
+                exit 1
+              fi
             else
               echo "Kotlin dependency exclusions already exist"
+              grep -A 3 "configurations.all" android/app/build.gradle || true
             fi
             echo "✅ Kotlin dependency conflicts fixed"
           else
@@ -243,7 +252,8 @@ jobs:
             echo "✅ APK found at: $APK_PATH"
             echo "File exists: $(test -f "$APK_PATH" && echo 'yes' || echo 'no')"
             echo "Size: $(du -h "$APK_PATH" | cut -f1)"
-            echo "Absolute path: $(cd "$(dirname "$APK_PATH")" && pwd)/$(basename "$APK_PATH")"
+            # Ensure path is relative to workspace root (client directory is working directory)
+            # APK_PATH should already be relative to client directory
             echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
             echo "apk_found=true" >> $GITHUB_OUTPUT
           else
@@ -261,7 +271,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: adlc-emergency-apk
-          path: ${{ steps.find_apk.outputs.apk_path }}
+          path: client/${{ steps.find_apk.outputs.apk_path }}
           retention-days: 90
 
       - name: Build failure notification
