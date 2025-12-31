@@ -1,37 +1,97 @@
 /* Responsive Styles for Mobile, Tablet, and Desktop */
 
+/* App-Friendly Base Styles */
+* {
+  -webkit-tap-highlight-color: transparent; /* Remove tap highlight on mobile */
+  -webkit-touch-callout: none; /* Disable long-press menu on iOS */
+}
+
+html {
+  /* Prevent text size adjustment on iOS */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  /* Smooth scrolling */
+  scroll-behavior: smooth;
+  /* Better font rendering on mobile */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  /* Safe area insets for notched devices */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  /* Prevent pull-to-refresh on mobile */
+  overscroll-behavior-y: contain;
+  /* Better scrolling on iOS */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Fixed navbar for app-like experience */
+.navbar {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  /* Account for safe area on notched devices */
+  padding-top: calc(15px + env(safe-area-inset-top));
+  padding-bottom: 15px;
+}
+
 /* Mobile First Approach - Base styles are for mobile */
 
 /* Small devices (phones, 600px and down) */
 @media only screen and (max-width: 600px) {
-  /* Navigation */
+  /* Navigation - App-friendly */
+  .navbar {
+    padding-top: calc(10px + env(safe-area-inset-top));
+    padding-bottom: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+
   .navbar-content {
-    flex-direction: column;
-    gap: 15px;
+    flex-direction: row;
+    gap: 10px;
     padding: 10px 15px;
+    align-items: center;
   }
 
   .navbar-brand {
-    font-size: 18px;
-    width: 100%;
-    justify-content: center;
+    font-size: 16px;
+    flex: 1;
+    min-width: 0; /* Allow text truncation */
+  }
+
+  .navbar-brand span {
+    display: none; /* Hide text on very small screens, show only logo */
   }
 
   .navbar-brand img {
-    height: 40px;
-    width: 40px;
+    height: 36px;
+    width: 36px;
   }
 
   .navbar-links {
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 10px;
-    width: 100%;
+    display: flex;
+    gap: 8px;
+    align-items: center;
   }
 
   .navbar-links a {
-    font-size: 14px;
-    padding: 8px 12px;
+    font-size: 13px;
+    padding: 10px 14px;
+    border-radius: 6px;
+    white-space: nowrap;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Hide "Home" link on mobile, keep only essential links */
+  .navbar-links a[href="/"] {
+    display: none;
   }
 
   /* Hero section */
@@ -47,12 +107,28 @@
     font-size: 16px;
   }
 
-  /* Buttons - larger touch targets */
+  /* Buttons - larger touch targets with better spacing */
   .btn {
-    padding: 14px 20px;
+    padding: 14px 24px;
     font-size: 16px;
-    min-height: 44px; /* Minimum touch target size */
+    min-height: 48px; /* Larger touch target for better usability */
+    min-width: 48px; /* Ensure buttons are tappable */
     touch-action: manipulation; /* Prevents double-tap zoom */
+    border-radius: 8px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    transition: all 0.2s ease;
+  }
+
+  .btn:active {
+    transform: scale(0.98);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  }
+
+  /* Button groups with better spacing */
+  .btn + .btn {
+    margin-left: 12px;
   }
 
   /* Forms */
@@ -85,13 +161,22 @@
     font-size: 12px;
   }
 
-  /* Cards */
+  /* Cards - Better spacing and touch feedback */
   .card {
-    padding: 15px;
+    padding: 20px;
+    margin-bottom: 16px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    transition: all 0.2s ease;
+  }
+
+  .card:active {
+    transform: scale(0.98);
   }
 
   .feature-card {
-    padding: 20px;
+    padding: 24px;
+    border-radius: 12px;
   }
 
   /* Grid layouts */
@@ -104,21 +189,53 @@
     grid-template-columns: 1fr;
   }
 
-  /* Container padding */
+  /* Container padding with safe areas */
   .container {
-    padding: 15px;
+    padding: 20px 15px;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+    max-width: 100%;
   }
 
-  /* Modal adjustments */
+  /* App-like page padding */
+  .App {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Modal adjustments - Bottom sheet style for mobile */
   .modal-content,
   div[style*="position: fixed"] {
-    width: 95vw !important;
-    max-width: 95vw !important;
-    max-height: 90vh !important;
-    margin: 5vh auto !important;
-    padding: 15px !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    max-height: 85vh !important;
+    margin: 0 !important;
+    margin-top: auto !important;
+    padding: 20px !important;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom)) !important;
+    border-radius: 20px 20px 0 0 !important;
     overflow-y: auto !important;
     -webkit-overflow-scrolling: touch;
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: auto !important;
+    transform: translateY(0) !important;
+    animation: slideUp 0.3s ease-out;
+  }
+
+  @keyframes slideUp {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  /* Modal backdrop */
+  div[style*="position: fixed"][style*="background"][style*="rgba"] {
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
   }
 
   /* Modal backdrop */
@@ -143,11 +260,23 @@
     flex-wrap: wrap !important;
   }
 
-  /* Dashboard action buttons */
+  /* Dashboard action buttons - Full width with better spacing */
   div[style*="marginBottom"][style*="display: flex"][style*="gap"] button {
     flex: 1 1 100% !important;
     min-width: 100% !important;
-    margin-bottom: 8px !important;
+    margin-bottom: 12px !important;
+    padding: 16px 24px !important;
+    font-size: 16px !important;
+    min-height: 52px !important;
+    border-radius: 10px !important;
+  }
+
+  /* Dashboard section spacing */
+  .dashboard-section,
+  div[style*="marginTop"][style*="30px"] {
+    margin-top: 24px !important;
+    margin-bottom: 24px !important;
+    padding: 0 4px;
   }
 
   /* Table action buttons in cells */
@@ -162,9 +291,22 @@
     padding: 8px 12px !important;
   }
 
-  /* Map */
-  .map-wrapper {
-    height: 400px;
+  /* Map - Better mobile sizing */
+  .map-wrapper,
+  .leaflet-container {
+    height: 50vh !important;
+    min-height: 300px;
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 16px 0;
+  }
+
+  /* Map controls - Larger touch targets */
+  .leaflet-control-zoom a {
+    width: 44px !important;
+    height: 44px !important;
+    line-height: 44px !important;
+    font-size: 20px !important;
   }
 
   /* Chat modal - full screen on mobile */
@@ -184,41 +326,121 @@
   }
 
   /* Hero adjustments */
+  .hero {
+    padding-top: calc(30px + env(safe-area-inset-top));
+    padding-bottom: 30px;
+  }
+
   .hero img {
-    max-width: 150px;
+    max-width: 120px;
     height: auto;
+  }
+
+  .hero h1 {
+    font-size: 24px;
+    margin-bottom: 12px;
+  }
+
+  .hero p {
+    font-size: 16px;
+    margin-bottom: 20px;
+  }
+
+  /* Better form spacing */
+  .form-group {
+    margin-bottom: 20px;
+  }
+
+  .form-group label {
+    font-size: 14px;
+    margin-bottom: 8px;
+    display: block;
+    font-weight: 600;
+  }
+
+  /* Input fields - Better mobile experience */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="datetime-local"],
+  input[type="number"],
+  textarea {
+    width: 100%;
+    padding: 14px 16px;
+    font-size: 16px; /* Prevents zoom on iOS */
+    border-radius: 8px;
+    min-height: 48px;
+    box-sizing: border-box;
+  }
+
+  /* Better table mobile experience */
+  .table-container {
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 16px 0;
+  }
+
+  /* Scrollable content */
+  .scrollable-content {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  /* Status bar spacing */
+  .status-bar-spacer {
+    height: env(safe-area-inset-top);
+    background: transparent;
   }
 }
 
 /* Medium devices (tablets, 601px to 768px) */
 @media only screen and (min-width: 601px) and (max-width: 768px) {
+  .navbar {
+    padding-top: calc(12px + env(safe-area-inset-top));
+  }
+
   .navbar-content {
-    padding: 0 15px;
+    padding: 0 20px;
   }
 
   .navbar-brand {
-    font-size: 20px;
+    font-size: 18px;
+  }
+
+  .navbar-brand span {
+    display: inline; /* Show text on tablet */
   }
 
   .navbar-brand img {
-    height: 50px;
-    width: 50px;
+    height: 44px;
+    width: 44px;
+  }
+
+  .navbar-links a {
+    font-size: 14px;
+    padding: 12px 18px;
   }
 
   .hero {
     padding: 50px 20px;
+    padding-top: calc(50px + env(safe-area-inset-top));
   }
 
   .hero h1 {
-    font-size: 36px;
+    font-size: 32px;
   }
 
   .hero p {
     font-size: 18px;
   }
 
+  .hero img {
+    max-width: 180px;
+  }
+
   .grid {
     grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
   }
 
   .stats-grid {
@@ -228,40 +450,90 @@
   .table-container {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    border-radius: 12px;
   }
 
   .modal-content,
   div[style*="position: fixed"] {
-    width: 90vw !important;
-    max-width: 90vw !important;
-    padding: 20px !important;
+    width: 85vw !important;
+    max-width: 600px !important;
+    max-height: 80vh !important;
+    margin: 10vh auto !important;
+    padding: 24px !important;
+    border-radius: 16px !important;
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    right: auto !important;
+    bottom: auto !important;
+    transform: translate(-50%, -50%) !important;
+    animation: fadeInScale 0.3s ease-out;
+  }
+
+  @keyframes fadeInScale {
+    from {
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
   }
 
   .login-container {
     max-width: 450px;
     padding: 40px 30px;
+    margin-top: 60px;
   }
 
   /* Dashboard buttons - 2 columns on tablet */
   div[style*="marginBottom"][style*="display: flex"][style*="gap"] button {
-    flex: 1 1 calc(50% - 5px) !important;
-    min-width: calc(50% - 5px) !important;
+    flex: 1 1 calc(50% - 8px) !important;
+    min-width: calc(50% - 8px) !important;
+    padding: 14px 20px !important;
   }
 
   .table td div[style*="display: flex"] {
     flex-direction: row !important;
     flex-wrap: wrap !important;
+    gap: 8px !important;
   }
 
   .table td button {
     flex: 1 1 auto !important;
     width: auto !important;
+    min-width: 80px !important;
+  }
+
+  .container {
+    padding: 24px 20px;
+  }
+
+  .card {
+    padding: 24px;
   }
 }
 
 /* Large devices (desktops, 769px and up) */
 @media only screen and (min-width: 769px) {
-  /* Default styles apply - no changes needed */
+  /* Ensure safe areas are respected even on desktop */
+  .navbar {
+    padding-top: calc(15px + env(safe-area-inset-top));
+  }
+
+  .container {
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+  }
+
+  /* Better spacing for desktop */
+  .card {
+    padding: 28px;
+  }
+
+  .btn {
+    padding: 12px 28px;
+  }
 }
 
 /* Landscape orientation on mobile */
@@ -319,4 +591,102 @@
     border: 2px solid #f9fafb;
   }
 }
+
+/* App-specific improvements */
+/* Better scrolling containers */
+.scrollable {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  overflow-y: auto;
+}
+
+/* Loading states */
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+  padding: 40px;
+}
+
+/* Empty states */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #9ca3af;
+}
+
+.empty-state svg,
+.empty-state img {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 20px;
+  opacity: 0.5;
+}
+
+/* Better focus states for accessibility */
+*:focus-visible {
+  outline: 2px solid #dc2626;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Disable text selection on buttons and interactive elements */
+.btn,
+.navbar-links a,
+button {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Better spacing for lists */
+ul, ol {
+  padding-left: 20px;
+  margin-bottom: 16px;
+}
+
+li {
+  margin-bottom: 8px;
+  line-height: 1.6;
+}
+
+/* Improved typography for mobile */
+h1, h2, h3, h4, h5, h6 {
+  line-height: 1.3;
+  margin-bottom: 12px;
+}
+
+h1 {
+  font-size: clamp(24px, 5vw, 48px);
+}
+
+h2 {
+  font-size: clamp(20px, 4vw, 36px);
+}
+
+h3 {
+  font-size: clamp(18px, 3.5vw, 28px);
+}
+
+/* Better link styling */
+a {
+  color: #60a5fa;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+a:active {
+  color: #3b82f6;
+}
+
+/* Improved spacing utilities */
+.mt-1 { margin-top: 8px; }
+.mt-2 { margin-top: 16px; }
+.mt-3 { margin-top: 24px; }
+.mb-1 { margin-bottom: 8px; }
+.mb-2 { margin-bottom: 16px; }
+.mb-3 { margin-bottom: 24px; }
+.p-1 { padding: 8px; }
+.p-2 { padding: 16px; }
+.p-3 { padding: 24px; }
 
