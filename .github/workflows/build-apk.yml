@@ -1,0 +1,157 @@
+name: Build APK and Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+  release:
+    types: [created]
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          npm run install-all
+
+      - name: Build React app
+        run: |
+          cd client
+          CI=false npm run build
+          cd ..
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Bubblewrap CLI
+        run: npm install -g @bubblewrap/cli
+
+      - name: Create TWA manifest
+        working-directory: client
+        run: |
+          APP_URL="${{ secrets.APP_URL || 'https://your-app.onrender.com' }}"
+          cat > twa-manifest.json << EOF
+          {
+            "packageId": "com.adlc.emergency",
+            "host": "$(echo $APP_URL | sed 's|https\?://||' | sed 's|/.*||')",
+            "name": "ADLC Emergency Services",
+            "launcherName": "ADLC Emergency",
+            "display": "standalone",
+            "themeColor": "#1f2937",
+            "navigationColor": "#1f2937",
+            "backgroundColor": "#111827",
+            "enableNotifications": true,
+            "startUrl": "/",
+            "iconUrl": "$APP_URL/logo.png",
+            "maskableIconUrl": "$APP_URL/logo.png",
+            "monochromeIconUrl": "$APP_URL/logo.png",
+            "shortcuts": [],
+            "generatorApp": "bubblewrap-cli",
+            "webManifestUrl": "$APP_URL/manifest.json",
+            "appVersionName": "${{ github.ref_name || '1.0.0' }}",
+            "appVersionCode": "${{ github.run_number }}",
+            "minSdkVersion": 19,
+            "orientation": "default",
+            "fingerprints": [],
+            "additionalTrustedOrigins": [],
+            "retainedBundles": [],
+            "appVersion": "1.0.0"
+          }
+          EOF
+
+      - name: Initialize TWA project
+        working-directory: client
+        continue-on-error: true
+        run: |
+          APP_URL="${{ secrets.APP_URL || 'https://your-app.onrender.com' }}"
+          if [ ! -d "twa" ]; then
+            bubblewrap init \
+              --manifest="$APP_URL/manifest.json" \
+              --directory=twa \
+              --package-id=com.adlc.emergency \
+              --name="ADLC Emergency Services" || true
+          fi
+
+      - name: Update TWA manifest with custom config
+        working-directory: client
+        run: |
+          if [ -f "twa-manifest.json" ] && [ -d "twa" ]; then
+            cp twa-manifest.json twa/twa-manifest.json
+          fi
+
+      - name: Build APK with Bubblewrap
+        working-directory: client
+        run: |
+          if [ -d "twa" ]; then
+            cd twa
+            bubblewrap build --skipSigning || bubblewrap build
+          else
+            echo "TWA directory not found, trying direct build..."
+            bubblewrap build --skipSigning --skipPwaValidation || true
+          fi
+
+      - name: Find and copy APK
+        working-directory: client
+        run: |
+          APK_PATH=$(find . -name "*.apk" -type f | head -n 1)
+          if [ -z "$APK_PATH" ]; then
+            echo "APK not found, listing files:"
+            find . -name "*.apk" -o -type d -name "twa" | head -20
+            exit 1
+          fi
+          echo "APK found at: $APK_PATH"
+          cp "$APK_PATH" app-release.apk || cp "$APK_PATH" ../app-release.apk
+          ls -lh app-release.apk ../app-release.apk 2>/dev/null || true
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: adlc-emergency-apk
+          path: |
+            client/**/*.apk
+            client/app-release.apk
+            app-release.apk
+          retention-days: 90
+
+      - name: Create GitHub Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            client/**/*.apk
+            client/app-release.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Render deployment happens automatically on push via Render's webhook
+  # This job is just a placeholder to show the workflow completes
+  deploy-notification:
+    runs-on: ubuntu-latest
+    needs: build-apk
+    if: success()
+    steps:
+      - name: Deployment Complete
+        run: |
+          echo "✅ APK build complete! Render deployment will happen automatically on push."
+          echo "📱 APK is available in the workflow artifacts."
+
