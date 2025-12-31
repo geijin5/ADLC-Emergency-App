@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { login } from '../../api/api';
+import './PersonnelLogin.css';
 
 const PersonnelLogin = () => {
   const navigate = useNavigate();
@@ -93,48 +94,26 @@ const PersonnelLogin = () => {
   };
 
   return (
-    <div className="App" style={{ 
-      background: 'linear-gradient(135deg, #dc2626 0%, #991b1b 100%)',
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '20px'
-    }}>
-      <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-        <img src="/logo.png" alt="ADLC Emergency Services Logo" style={{ height: '200px', width: '200px', display: 'block', margin: '0 auto', filter: 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3))' }} />
-      </div>
-      <div className="login-container" style={{
-        background: '#1f2937',
-        borderRadius: '12px',
-        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.4)',
-        maxWidth: '450px',
-        width: '100%',
-        border: '1px solid #374151'
-      }}>
-        <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-          <div style={{ 
-            fontSize: '48px', 
-            marginBottom: '10px',
-            color: '#dc2626'
-          }}>🚨</div>
-          <h2 style={{ 
-            color: '#f9fafb', 
-            marginBottom: '10px',
-            fontSize: '28px'
-          }}>Emergency Personnel Login</h2>
-          <p style={{ color: '#d1d5db', fontSize: '14px' }}>
-            Anaconda-Deer Lodge County Emergency Services
-          </p>
+    <div className="login-page">
+      <div className="login-layout">
+        <div className="login-logo-section">
+          <img src="/logo.png" alt="ADLC Emergency Services Logo" />
         </div>
-
-        {error && (
-          <div className="alert alert-danger" style={{ marginBottom: '20px' }}>
-            {error}
+        
+        <div className="login-form-section">
+          <div className="login-header">
+            <span className="login-header-icon">🚨</span>
+            <h2>Emergency Personnel Login</h2>
+            <p>Anaconda-Deer Lodge County Emergency Services</p>
           </div>
-        )}
 
-        <form onSubmit={handleSubmit}>
+          {error && (
+            <div className="alert alert-danger" style={{ marginBottom: '20px' }}>
+              {error}
+            </div>
+          )}
+
+          <form className="login-form" onSubmit={handleSubmit}>
           <div className="form-group">
             <label htmlFor="username">Username</label>
             <input
@@ -181,35 +160,28 @@ const PersonnelLogin = () => {
             </label>
           </div>
 
-          <button 
-            type="submit" 
-            className="btn btn-primary"
-            disabled={loading}
-            style={{ 
-              width: '100%', 
-              marginTop: '20px',
-              padding: '14px',
-              fontSize: '16px',
-              fontWeight: '600',
-              borderRadius: '6px',
-              transition: 'all 0.3s'
-            }}
-          >
-            {loading ? 'Logging in...' : 'Login to Dashboard'}
-          </button>
-        </form>
+            <button 
+              type="submit" 
+              className="btn btn-primary"
+              disabled={loading}
+              style={{ 
+                width: '100%', 
+                marginTop: '20px',
+                padding: '14px',
+                fontSize: '16px',
+                fontWeight: '600',
+                borderRadius: '8px'
+              }}
+            >
+              {loading ? 'Logging in...' : 'Login to Dashboard'}
+            </button>
+          </form>
 
-        <div style={{ 
-          marginTop: '25px', 
-          padding: '15px',
-          background: '#374151',
-          borderRadius: '6px',
-          textAlign: 'center',
-          border: '1px solid #4b5563'
-        }}>
-          <p style={{ fontSize: '12px', color: '#d1d5db', margin: '0' }}>
-            <strong>Default credentials:</strong> admin / admin123
-          </p>
+          <div className="login-credentials-info">
+            <p>
+              <strong>Default credentials:</strong> admin / admin123
+            </p>
+          </div>
         </div>
       </div>
     </div>

@@ -1,0 +1,173 @@
+/* Personnel Login Page Styles */
+
+.login-page {
+  background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+  min-height: 100vh;
+  min-height: -webkit-fill-available; /* iOS Safari fix */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  padding-top: calc(20px + env(safe-area-inset-top));
+  padding-bottom: calc(20px + env(safe-area-inset-bottom));
+  position: relative;
+  overflow-x: hidden;
+}
+
+.login-layout {
+  display: flex;
+  width: 100%;
+  max-width: 900px;
+  background: transparent;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.login-logo-section {
+  flex: 0 0 40%;
+  background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  position: relative;
+}
+
+.login-logo-section img {
+  width: 180px;
+  height: 180px;
+  max-width: 90%;
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.3));
+  animation: fadeInScale 0.5s ease-out;
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.login-form-section {
+  flex: 1;
+  background: #1f2937;
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.login-header {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.login-header-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+  display: block;
+}
+
+.login-header h2 {
+  color: #f9fafb;
+  margin-bottom: 8px;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.login-header p {
+  color: #d1d5db;
+  font-size: 14px;
+  margin: 0;
+}
+
+.login-form {
+  width: 100%;
+}
+
+.login-credentials-info {
+  margin-top: 25px;
+  padding: 15px;
+  background: #374151;
+  border-radius: 8px;
+  text-align: center;
+  border: 1px solid #4b5563;
+}
+
+.login-credentials-info p {
+  font-size: 12px;
+  color: #d1d5db;
+  margin: 0;
+}
+
+/* Mobile Layout - Stack vertically */
+@media only screen and (max-width: 768px) {
+  .login-page {
+    padding: 0;
+    align-items: flex-start;
+  }
+
+  .login-layout {
+    flex-direction: column;
+    max-width: 100%;
+    border-radius: 0;
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
+  }
+
+  .login-logo-section {
+    flex: 0 0 auto;
+    min-height: 200px;
+    padding: 30px 20px;
+    padding-top: calc(30px + env(safe-area-inset-top));
+  }
+
+  .login-logo-section img {
+    width: 120px;
+    height: 120px;
+  }
+
+  .login-form-section {
+    flex: 1;
+    padding: 30px 20px;
+    padding-bottom: calc(30px + env(safe-area-inset-bottom));
+    border-radius: 20px 20px 0 0;
+  }
+
+  .login-header h2 {
+    font-size: 24px;
+  }
+
+  .login-header-icon {
+    font-size: 40px;
+  }
+}
+
+/* Small mobile devices */
+@media only screen and (max-width: 480px) {
+  .login-logo-section {
+    min-height: 180px;
+    padding: 20px 15px;
+    padding-top: calc(20px + env(safe-area-inset-top));
+  }
+
+  .login-logo-section img {
+    width: 100px;
+    height: 100px;
+  }
+
+  .login-form-section {
+    padding: 25px 15px;
+    padding-bottom: calc(25px + env(safe-area-inset-bottom));
+  }
+
+  .login-header h2 {
+    font-size: 22px;
+  }
+}
+
