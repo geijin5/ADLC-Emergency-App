@@ -185,46 +185,74 @@ jobs:
           yes | sdkmanager --licenses || true
           
           # Build release APK
-          ./gradlew assembleRelease || {
+          if ./gradlew assembleRelease; then
+            echo "✅ Release build successful"
+            BUILD_TYPE="release"
+          else
             echo "Release build failed, trying debug build..."
-            ./gradlew assembleDebug
-          }
+            if ./gradlew assembleDebug; then
+              echo "✅ Debug build successful"
+              BUILD_TYPE="debug"
+            else
+              echo "❌ Both release and debug builds failed"
+              exit 1
+            fi
+          fi
           
-          echo "✅ Gradle build completed"
+          echo "✅ Gradle build completed (type: $BUILD_TYPE)"
+          echo "Listing APK output directory:"
+          ls -la app/build/outputs/apk/$BUILD_TYPE/ || echo "APK directory not found"
 
       - name: Find APK file
         id: find_apk
         working-directory: client
         run: |
           echo "Searching for APK files..."
+          echo "Current directory: $(pwd)"
+          echo "Listing android directory structure:"
+          ls -la android/app/build/outputs/apk/ 2>/dev/null || echo "APK outputs directory doesn't exist"
           
           # Search in standard locations
           APK_PATH=""
           
           if [ -d "android/app/build/outputs/apk/release" ]; then
+            echo "Release directory exists, listing contents:"
+            ls -la android/app/build/outputs/apk/release/ || true
             APK_PATH=$(find android/app/build/outputs/apk/release -name "*.apk" -type f 2>/dev/null | head -n 1)
-            echo "Checked release directory"
+            if [ -n "$APK_PATH" ]; then
+              echo "Found APK in release: $APK_PATH"
+            fi
           fi
           
           if [ -z "$APK_PATH" ] && [ -d "android/app/build/outputs/apk/debug" ]; then
+            echo "Debug directory exists, listing contents:"
+            ls -la android/app/build/outputs/apk/debug/ || true
             APK_PATH=$(find android/app/build/outputs/apk/debug -name "*.apk" -type f 2>/dev/null | head -n 1)
-            echo "Checked debug directory"
+            if [ -n "$APK_PATH" ]; then
+              echo "Found APK in debug: $APK_PATH"
+            fi
           fi
           
           if [ -z "$APK_PATH" ]; then
+            echo "Searching entire android directory for APK files..."
+            find android -name "*.apk" -type f 2>/dev/null | head -5 || echo "No APK files found"
             APK_PATH=$(find android -name "*.apk" -type f 2>/dev/null | head -n 1)
-            echo "Searched entire android directory"
           fi
           
-          if [ -n "$APK_PATH" ]; then
+          if [ -n "$APK_PATH" ] && [ -f "$APK_PATH" ]; then
             echo "✅ APK found at: $APK_PATH"
+            echo "File exists: $(test -f "$APK_PATH" && echo 'yes' || echo 'no')"
             echo "Size: $(du -h "$APK_PATH" | cut -f1)"
+            echo "Absolute path: $(cd "$(dirname "$APK_PATH")" && pwd)/$(basename "$APK_PATH")"
             echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
             echo "apk_found=true" >> $GITHUB_OUTPUT
           else
-            echo "❌ APK not found"
-            echo "Listing build outputs:"
-            find android/app/build/outputs -type f 2>/dev/null | head -20 || echo "No outputs directory"
+            echo "❌ APK not found or file doesn't exist"
+            echo "APK_PATH was: $APK_PATH"
+            echo "Listing build outputs directory structure:"
+            find android/app/build/outputs -type d 2>/dev/null | head -20 || echo "No outputs directory"
+            echo "Listing all files in outputs:"
+            find android/app/build/outputs -type f 2>/dev/null | head -20 || echo "No output files"
             echo "apk_found=false" >> $GITHUB_OUTPUT
           fi
 
