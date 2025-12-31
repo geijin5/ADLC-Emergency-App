@@ -1,0 +1,322 @@
+/* Responsive Styles for Mobile, Tablet, and Desktop */
+
+/* Mobile First Approach - Base styles are for mobile */
+
+/* Small devices (phones, 600px and down) */
+@media only screen and (max-width: 600px) {
+  /* Navigation */
+  .navbar-content {
+    flex-direction: column;
+    gap: 15px;
+    padding: 10px 15px;
+  }
+
+  .navbar-brand {
+    font-size: 18px;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .navbar-brand img {
+    height: 40px;
+    width: 40px;
+  }
+
+  .navbar-links {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+  }
+
+  .navbar-links a {
+    font-size: 14px;
+    padding: 8px 12px;
+  }
+
+  /* Hero section */
+  .hero {
+    padding: 40px 15px;
+  }
+
+  .hero h1 {
+    font-size: 28px;
+  }
+
+  .hero p {
+    font-size: 16px;
+  }
+
+  /* Buttons - larger touch targets */
+  .btn {
+    padding: 14px 20px;
+    font-size: 16px;
+    min-height: 44px; /* Minimum touch target size */
+    touch-action: manipulation; /* Prevents double-tap zoom */
+  }
+
+  /* Forms */
+  .input, .select {
+    font-size: 16px; /* Prevents zoom on iOS */
+    padding: 14px;
+    min-height: 44px;
+  }
+
+  textarea.input {
+    min-height: 100px;
+  }
+
+  /* Tables - convert to card view or horizontal scroll */
+  .table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 -15px;
+    padding: 0 15px;
+  }
+
+  .table {
+    min-width: 600px;
+    font-size: 14px;
+  }
+
+  .table th,
+  .table td {
+    padding: 8px;
+    font-size: 12px;
+  }
+
+  /* Cards */
+  .card {
+    padding: 15px;
+  }
+
+  .feature-card {
+    padding: 20px;
+  }
+
+  /* Grid layouts */
+  .grid {
+    grid-template-columns: 1fr;
+    gap: 15px;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Container padding */
+  .container {
+    padding: 15px;
+  }
+
+  /* Modal adjustments */
+  .modal-content,
+  div[style*="position: fixed"] {
+    width: 95vw !important;
+    max-width: 95vw !important;
+    max-height: 90vh !important;
+    margin: 5vh auto !important;
+    padding: 15px !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Modal backdrop */
+  div[style*="position: fixed"][style*="top: 0"][style*="left: 0"] {
+    padding: 10px !important;
+  }
+
+  /* Login container */
+  .login-container {
+    margin: 20px auto;
+    padding: 30px 20px;
+    max-width: 90vw;
+  }
+
+  /* Dashboard specific */
+  .dashboard-section {
+    margin-bottom: 20px;
+  }
+
+  /* Button groups - stack on mobile */
+  div[style*="display: flex"][style*="gap"] {
+    flex-wrap: wrap !important;
+  }
+
+  /* Dashboard action buttons */
+  div[style*="marginBottom"][style*="display: flex"][style*="gap"] button {
+    flex: 1 1 100% !important;
+    min-width: 100% !important;
+    margin-bottom: 8px !important;
+  }
+
+  /* Table action buttons in cells */
+  .table td div[style*="display: flex"] {
+    flex-direction: column !important;
+    gap: 5px !important;
+  }
+
+  .table td button {
+    width: 100% !important;
+    font-size: 12px !important;
+    padding: 8px 12px !important;
+  }
+
+  /* Map */
+  .map-wrapper {
+    height: 400px;
+  }
+
+  /* Chat modal - full screen on mobile */
+  div[style*="position: fixed"][style*="top: 0"] {
+    padding: 0 !important;
+  }
+
+  /* Form sections */
+  .form-group {
+    margin-bottom: 15px;
+  }
+
+  /* Badge adjustments */
+  .badge {
+    font-size: 10px;
+    padding: 3px 8px;
+  }
+
+  /* Hero adjustments */
+  .hero img {
+    max-width: 150px;
+    height: auto;
+  }
+}
+
+/* Medium devices (tablets, 601px to 768px) */
+@media only screen and (min-width: 601px) and (max-width: 768px) {
+  .navbar-content {
+    padding: 0 15px;
+  }
+
+  .navbar-brand {
+    font-size: 20px;
+  }
+
+  .navbar-brand img {
+    height: 50px;
+    width: 50px;
+  }
+
+  .hero {
+    padding: 50px 20px;
+  }
+
+  .hero h1 {
+    font-size: 36px;
+  }
+
+  .hero p {
+    font-size: 18px;
+  }
+
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .modal-content,
+  div[style*="position: fixed"] {
+    width: 90vw !important;
+    max-width: 90vw !important;
+    padding: 20px !important;
+  }
+
+  .login-container {
+    max-width: 450px;
+    padding: 40px 30px;
+  }
+
+  /* Dashboard buttons - 2 columns on tablet */
+  div[style*="marginBottom"][style*="display: flex"][style*="gap"] button {
+    flex: 1 1 calc(50% - 5px) !important;
+    min-width: calc(50% - 5px) !important;
+  }
+
+  .table td div[style*="display: flex"] {
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+  }
+
+  .table td button {
+    flex: 1 1 auto !important;
+    width: auto !important;
+  }
+}
+
+/* Large devices (desktops, 769px and up) */
+@media only screen and (min-width: 769px) {
+  /* Default styles apply - no changes needed */
+}
+
+/* Landscape orientation on mobile */
+@media only screen and (max-width: 900px) and (orientation: landscape) {
+  .hero {
+    padding: 30px 20px;
+  }
+
+  .hero h1 {
+    font-size: 32px;
+  }
+
+  .modal-content {
+    max-height: 85vh;
+  }
+
+  .map-wrapper {
+    height: 60vh;
+  }
+}
+
+/* Print styles */
+@media print {
+  .navbar,
+  .btn,
+  .modal,
+  .dashboard-buttons {
+    display: none !important;
+  }
+
+  .table {
+    font-size: 10px;
+  }
+}
+
+/* Accessibility - reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .btn {
+    border: 2px solid currentColor;
+  }
+
+  .card,
+  .feature-card {
+    border: 2px solid #f9fafb;
+  }
+}
+

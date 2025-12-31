@@ -8,6 +8,7 @@ import PersonnelDashboard from './components/Personnel/PersonnelDashboard';
 import CountyAttorneyDashboard from './components/CountyAttorney/CountyAttorneyDashboard';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import './App.css';
+import './responsive.css';
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
