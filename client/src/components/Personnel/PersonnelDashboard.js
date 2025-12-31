@@ -142,7 +142,8 @@ const PersonnelDashboard = () => {
 
   // Poll for new chat messages and callouts
   useEffect(() => {
-    if (loading) return;
+    // Start polling once initial critical data is loaded (departments and callouts)
+    if (!departments.length && !callouts.length) return;
     
     const checkForUpdates = async () => {
       try {
@@ -267,40 +268,66 @@ const PersonnelDashboard = () => {
 
   const fetchData = async () => {
     try {
-      const [usersRes, deptsRes, areasRes, routesRes, detoursRes, roadsRes, calloutsRes, sarRes] = await Promise.all([
-        getUsers(),
-        getDepartments(),
+      // First, set loading to false immediately to show the UI
+      // Then load data progressively - critical data first, then less critical data
+      setLoading(false);
+      
+      // Load critical data first (departments and callouts - needed for UI)
+      try {
+        const [deptsRes, calloutsRes] = await Promise.all([
+          getDepartments(),
+          getCallouts()
+        ]);
+        setDepartments(deptsRes.data || []);
+        setCallouts(calloutsRes.data || []);
+        
+        // Update last IDs for callouts
+        if (calloutsRes.data && calloutsRes.data.length > 0) {
+          const maxCalloutId = Math.max(...calloutsRes.data.map(c => c.id));
+          if (maxCalloutId > (lastCalloutId || 0)) {
+            setLastCalloutId(maxCalloutId);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch critical data:', error);
+        if (error.response?.status === 401) {
+          logout();
+          navigate('/personnel/login');
+          return;
+        }
+      }
+      
+      // Load other data in background (non-blocking)
+      // Load map data next (areas, routes, detours, roads, SAR)
+      Promise.all([
         getPersonnelClosedAreas(),
         getPersonnelParadeRoutes(),
         getPersonnelDetours(),
         getPersonnelClosedRoads(),
-        getCallouts(),
         getPersonnelSearchRescue()
-      ]);
-      setUsers(usersRes.data || []);
-      setDepartments(deptsRes.data || []);
-      setClosedAreas(areasRes.data || []);
-      setParadeRoutes(routesRes.data || []);
-      setDetours(detoursRes.data || []);
-      setClosedRoads(roadsRes.data || []);
-      setCallouts(calloutsRes.data || []);
-      setSearchRescueOps(sarRes.data || []);
+      ]).then(([areasRes, routesRes, detoursRes, roadsRes, sarRes]) => {
+        setClosedAreas(areasRes.data || []);
+        setParadeRoutes(routesRes.data || []);
+        setDetours(detoursRes.data || []);
+        setClosedRoads(roadsRes.data || []);
+        setSearchRescueOps(sarRes.data || []);
+      }).catch(error => {
+        console.error('Failed to fetch map data:', error);
+      });
       
-      // Update last IDs
-      if (calloutsRes.data && calloutsRes.data.length > 0) {
-        const maxCalloutId = Math.max(...calloutsRes.data.map(c => c.id));
-        if (maxCalloutId > (lastCalloutId || 0)) {
-          setLastCalloutId(maxCalloutId);
-        }
-      }
+      // Load user data last (only needed for admin sections)
+      getUsers().then(usersRes => {
+        setUsers(usersRes.data || []);
+      }).catch(error => {
+        console.error('Failed to fetch users:', error);
+      });
+      
     } catch (error) {
       console.error('Failed to fetch data:', error);
       if (error.response?.status === 401) {
         logout();
         navigate('/personnel/login');
       }
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -1426,14 +1453,9 @@ const PersonnelDashboard = () => {
         </div>
         
         {/* Push Notification Subscription */}
-        {!loading && <PersonnelPushNotification />}
+        <PersonnelPushNotification />
 
-        {loading ? (
-          <div className="card">
-            <p>Loading dashboard...</p>
-          </div>
-        ) : (
-          <>
+        <>
             {/* Active Callouts Alert */}
             {callouts.length > 0 && (
               <div style={{ marginBottom: '20px' }}>
@@ -2269,7 +2291,6 @@ const PersonnelDashboard = () => {
               </div>
             )}
           </>
-        )}
       </div>
 
       {showAlertModal && (
