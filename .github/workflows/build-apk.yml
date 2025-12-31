@@ -33,7 +33,12 @@ jobs:
           CI=false npm run build
           cd ..
           echo "✅ React app built successfully"
-          ls -la client/build/ | head -10
+          if [ -d "client/build" ]; then
+            echo "Build directory exists with $(ls -1 client/build | wc -l) files"
+          else
+            echo "❌ Build directory not found!"
+            exit 1
+          fi
 
       - name: Setup Java JDK
         uses: actions/setup-java@v4
@@ -44,98 +49,118 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Capacitor CLI
-        run: npm install -g @capacitor/cli
+      - name: Install Capacitor CLI and core
+        run: |
+          npm install -g @capacitor/cli @capacitor/core
+          cd client
+          npm install @capacitor/cli @capacitor/core @capacitor/android --save-dev || npm install @capacitor/cli @capacitor/core @capacitor/android
+          cd ..
 
       - name: Initialize Capacitor
         working-directory: client
         run: |
-          # Initialize Capacitor if config doesn't exist
-          if [ ! -f "capacitor.config.json" ] && [ ! -f "capacitor.config.ts" ]; then
+          echo "Checking for existing Capacitor config..."
+          if [ -f "capacitor.config.json" ] || [ -f "capacitor.config.ts" ]; then
+            echo "✅ Capacitor config already exists"
+            cat capacitor.config.json 2>/dev/null || cat capacitor.config.ts
+          else
             echo "Initializing Capacitor..."
-            npx cap init "ADLC Emergency Services" "com.adlc.emergency" --web-dir=build || {
-              echo "Capacitor init failed, creating config manually..."
-              cat > capacitor.config.json << EOF
+            # Create config manually to avoid interactive prompts
+            cat > capacitor.config.json << EOF
           {
             "appId": "com.adlc.emergency",
             "appName": "ADLC Emergency Services",
             "webDir": "build",
-            "bundledWebRuntime": false,
-            "server": {
-              "hostname": "${{ secrets.APP_URL || 'adlc-emergency-app.onrender.com' }}",
-              "androidScheme": "https"
-            }
+            "bundledWebRuntime": false
           }
           EOF
-            }
-          else
-            echo "Capacitor config already exists"
-          fi
-          
-          # Verify config exists
-          if [ -f "capacitor.config.json" ] || [ -f "capacitor.config.ts" ]; then
-            echo "✅ Capacitor config ready"
-            cat capacitor.config.json 2>/dev/null || cat capacitor.config.ts
-          else
-            echo "❌ Capacitor config not found"
-            exit 1
+            echo "✅ Capacitor config created"
+            cat capacitor.config.json
           fi
 
       - name: Add Android platform
         working-directory: client
         run: |
-          if [ ! -d "android" ]; then
-            echo "Adding Android platform..."
-            npx cap add android || {
-              echo "Failed to add Android platform"
-              exit 1
-            }
-          else
-            echo "Android platform already exists"
-          fi
-          
-          # Verify android directory exists
           if [ -d "android" ]; then
-            echo "✅ Android platform ready"
-            ls -la android/ | head -10
+            echo "✅ Android platform already exists"
+            ls -la android/ | head -5
           else
-            echo "❌ Android directory not found"
-            exit 1
+            echo "Adding Android platform..."
+            npx cap add android
+            if [ ! -d "android" ]; then
+              echo "❌ Failed to create android directory"
+              exit 1
+            fi
+            echo "✅ Android platform added"
           fi
 
       - name: Sync web assets to Android
         working-directory: client
         run: |
-          echo "Syncing web assets to Android..."
-          npx cap sync android || {
-            echo "Cap sync failed, but continuing..."
-          }
+          echo "Syncing web assets..."
+          npx cap sync android
           echo "✅ Sync completed"
+          
+          # Verify sync worked
+          if [ -d "android/app/src/main/assets/public" ]; then
+            echo "✅ Assets synced successfully"
+            ls -la android/app/src/main/assets/public/ | head -5
+          else
+            echo "⚠️ Assets directory not found, but continuing..."
+          fi
 
       - name: Update Android build configuration
         working-directory: client
         run: |
           if [ -f "android/app/build.gradle" ]; then
-            # Update version code and name
-            sed -i 's/versionCode [0-9]*/versionCode '${{ github.run_number }}'/' android/app/build.gradle || true
-            sed -i 's/versionName ".*"/versionName "'${{ github.ref_name || '1.0.0' }}'"/' android/app/build.gradle || true
-            echo "✅ Android build config updated"
+            echo "Updating build.gradle..."
+            # Update version code
+            sed -i 's/versionCode [0-9]*/versionCode '${{ github.run_number }}'/' android/app/build.gradle || \
+            sed -i '/defaultConfig {/a\        versionCode '${{ github.run_number }}'' android/app/build.gradle || true
+            
+            # Update version name
+            sed -i 's/versionName ".*"/versionName "'${{ github.ref_name || '1.0.0' }}'"/' android/app/build.gradle || \
+            sed -i '/versionCode/a\        versionName "'${{ github.ref_name || '1.0.0' }}'"' android/app/build.gradle || true
+            
+            echo "✅ Build config updated"
           else
-            echo "⚠️ build.gradle not found, skipping config update"
+            echo "⚠️ build.gradle not found"
+            exit 1
           fi
+
+      - name: Verify Android setup
+        working-directory: client
+        run: |
+          echo "Verifying Android setup..."
+          if [ ! -d "android" ]; then
+            echo "❌ android directory not found"
+            exit 1
+          fi
+          
+          if [ ! -f "android/gradlew" ]; then
+            echo "❌ gradlew not found"
+            ls -la android/
+            exit 1
+          fi
+          
+          echo "✅ Android setup verified"
+          ls -la android/ | head -10
 
       - name: Build APK with Gradle
         working-directory: client/android
         run: |
-          if [ ! -f "gradlew" ]; then
-            echo "❌ gradlew not found in android directory"
-            ls -la
-            exit 1
-          fi
-          
-          chmod +x gradlew
           echo "Building APK..."
-          ./gradlew assembleRelease || ./gradlew assembleDebug
+          chmod +x gradlew
+          
+          # Accept licenses
+          yes | sdkmanager --licenses || true
+          
+          # Build release APK
+          ./gradlew assembleRelease || {
+            echo "Release build failed, trying debug build..."
+            ./gradlew assembleDebug
+          }
+          
           echo "✅ Gradle build completed"
 
       - name: Find APK file
@@ -143,36 +168,35 @@ jobs:
         working-directory: client
         run: |
           echo "Searching for APK files..."
-          find . -name "*.apk" -type f 2>/dev/null | while read file; do
-            echo "Found: $file ($(du -h "$file" | cut -f1))"
-          done
           
-          # Look for release APK first, then debug
-          APK_PATH=$(find android/app/build/outputs/apk/release -name "*.apk" -type f 2>/dev/null | head -n 1)
+          # Search in standard locations
+          APK_PATH=""
           
-          if [ -z "$APK_PATH" ]; then
+          if [ -d "android/app/build/outputs/apk/release" ]; then
+            APK_PATH=$(find android/app/build/outputs/apk/release -name "*.apk" -type f 2>/dev/null | head -n 1)
+            echo "Checked release directory"
+          fi
+          
+          if [ -z "$APK_PATH" ] && [ -d "android/app/build/outputs/apk/debug" ]; then
             APK_PATH=$(find android/app/build/outputs/apk/debug -name "*.apk" -type f 2>/dev/null | head -n 1)
+            echo "Checked debug directory"
           fi
           
           if [ -z "$APK_PATH" ]; then
             APK_PATH=$(find android -name "*.apk" -type f 2>/dev/null | head -n 1)
-          fi
-          
-          if [ -z "$APK_PATH" ]; then
-            APK_PATH=$(find . -name "*.apk" -type f 2>/dev/null | head -n 1)
+            echo "Searched entire android directory"
           fi
           
           if [ -n "$APK_PATH" ]; then
             echo "✅ APK found at: $APK_PATH"
+            echo "Size: $(du -h "$APK_PATH" | cut -f1)"
             echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
             echo "apk_found=true" >> $GITHUB_OUTPUT
-            ls -lh "$APK_PATH"
           else
-            echo "❌ APK not found after build"
+            echo "❌ APK not found"
+            echo "Listing build outputs:"
+            find android/app/build/outputs -type f 2>/dev/null | head -20 || echo "No outputs directory"
             echo "apk_found=false" >> $GITHUB_OUTPUT
-            echo "Listing build output directories:"
-            find android/app/build/outputs -type d 2>/dev/null || echo "No outputs directory found"
-            ls -la android/app/build/ 2>/dev/null || echo "No build directory found"
           fi
 
       - name: Upload APK artifact
@@ -186,31 +210,15 @@ jobs:
       - name: Build failure notification
         if: steps.find_apk.outputs.apk_found != 'true'
         run: |
-          echo "⚠️ APK build completed but APK file not found"
+          echo "::warning::APK build completed but APK file not found"
           echo ""
-          echo "This could happen if:"
-          echo "1. Capacitor Android platform wasn't properly initialized"
-          echo "2. Gradle build had errors (check logs above)"
-          echo "3. APK was built but in an unexpected location"
+          echo "Debugging information:"
+          echo "- Check if Gradle build completed successfully above"
+          echo "- Verify Android SDK is properly set up"
+          echo "- Check for Gradle errors in the build output"
           echo ""
-          echo "To fix this:"
-          echo "- Check the build logs above for Gradle errors"
-          echo "- Ensure the React build completed successfully"
-          echo "- Try running 'npx cap add android' locally first"
-          echo ""
-          echo "Note: This failure does NOT affect Render deployment."
+          echo "This failure does NOT affect Render deployment."
           echo "The web app will still deploy successfully to Render."
-
-      - name: Create GitHub Release
-        if: github.event_name == 'release' && steps.find_apk.outputs.apk_found == 'true'
-        uses: softprops/action-gh-release@v1
-        with:
-          files: ${{ steps.find_apk.outputs.apk_path }}
-          draft: false
-          prerelease: false
-          generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # Render deployment notification (Render deploys automatically via webhook)
   deploy-info:
@@ -220,7 +228,7 @@ jobs:
     steps:
       - name: Deployment Status
         run: |
-          if [ "${{ needs.build-apk.result }}" == "success" ]; then
+          if [ "${{ needs.build-apk.result }}" == "success" ] && [ "${{ needs.build-apk.outputs.apk_found }}" == "true" ]; then
             echo "✅ APK build successful!"
             echo "📱 APK is available in the workflow artifacts."
           else
