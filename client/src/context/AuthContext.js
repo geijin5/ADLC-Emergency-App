@@ -42,21 +42,29 @@ export const AuthProvider = ({ children }) => {
 
     checkAuth();
 
-    // Listen for storage changes (e.g., when token is cleared by interceptor)
+    // Listen for storage changes (cross-tab/window) and custom events (same window)
     const handleStorageChange = (e) => {
-      if (e.key === 'token' || e.key === 'user') {
-        const token = localStorage.getItem('token');
-        const userData = localStorage.getItem('user');
-        if (token && userData) {
+      const token = localStorage.getItem('token');
+      const userData = localStorage.getItem('user');
+      if (token && userData) {
+        try {
           setUser(JSON.parse(userData));
-        } else {
+        } catch (err) {
           setUser(null);
         }
+      } else {
+        setUser(null);
       }
     };
 
+    // Listen for cross-tab storage events
     window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    // Listen for same-window storage events (dispatched by API interceptor)
+    window.addEventListener('storage', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, []);
 
   const login = (token, userData) => {
