@@ -718,6 +718,37 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+// Verify token and return user info
+app.get('/api/auth/me', authenticateToken, async (req, res) => {
+  try {
+    // Token is already verified by authenticateToken middleware
+    // Get full user data from database
+    const user = await get('SELECT id, username, role, name, department_id FROM users WHERE id = ?', [req.user.id]);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Get department info if user has a department
+    let departmentName = null;
+    if (user.department_id) {
+      const dept = await get('SELECT name FROM departments WHERE id = ?', [user.department_id]);
+      departmentName = dept?.name || null;
+    }
+    
+    res.json({
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      name: user.name,
+      department_id: user.department_id,
+      department_name: departmentName
+    });
+  } catch (err) {
+    console.error('Error fetching user info:', err);
+    return res.status(500).json({ error: 'Failed to fetch user info' });
+  }
+});
+
 // Public Routes
 app.get('/api/public/alerts', async (req, res) => {
   try {

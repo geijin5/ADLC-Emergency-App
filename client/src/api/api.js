@@ -82,6 +82,10 @@ export const login = (credentials) => {
   return api.post('/auth/login', credentials);
 };
 
+export const verifyAuth = () => {
+  return api.get('/auth/me');
+};
+
 
 export const createAlert = (data) => {
   return api.post('/personnel/alerts', data);
