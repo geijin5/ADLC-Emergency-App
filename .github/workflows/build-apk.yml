@@ -193,24 +193,22 @@ jobs:
           # Accept licenses
           yes | sdkmanager --licenses || true
           
-          # Build release APK
-          if ./gradlew assembleRelease; then
-            echo "✅ Release build successful"
-            BUILD_TYPE="release"
+          # Build debug APK (automatically signed, works for testing)
+          # Debug APKs are properly signed and can be installed without issues
+          echo "Building debug APK (automatically signed)..."
+          if ./gradlew assembleDebug; then
+            echo "✅ Debug build successful"
+            BUILD_TYPE="debug"
           else
-            echo "Release build failed, trying debug build..."
-            if ./gradlew assembleDebug; then
-              echo "✅ Debug build successful"
-              BUILD_TYPE="debug"
-            else
-              echo "❌ Both release and debug builds failed"
-              exit 1
-            fi
+            echo "❌ Debug build failed"
+            exit 1
           fi
           
           echo "✅ Gradle build completed (type: $BUILD_TYPE)"
           echo "Listing APK output directory:"
           ls -la app/build/outputs/apk/$BUILD_TYPE/ || echo "APK directory not found"
+          echo "APK files found:"
+          find app/build/outputs/apk/$BUILD_TYPE -name "*.apk" -type f 2>/dev/null || echo "No APK files found"
 
       - name: Find APK file
         id: find_apk
