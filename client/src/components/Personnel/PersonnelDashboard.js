@@ -204,12 +204,15 @@ const PersonnelDashboard = () => {
       const maxId = Math.max(...callouts.map(c => c.id));
       setLastCalloutId(maxId);
     }
-    if (!loading && chatMessages.length > 0 && lastChatMessageId === null) {
+  }, [loading, callouts]);
+  
+  // Initialize chat message ID on first fetch when chat modal is closed
+  useEffect(() => {
+    if (!loading && !showChatModal && chatMessages.length > 0 && lastChatMessageId === null) {
       const maxId = Math.max(...chatMessages.map(msg => msg.id));
       setLastChatMessageId(maxId);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, callouts, chatMessages]);
+  }, [loading, showChatModal, chatMessages, lastChatMessageId]);
 
   useEffect(() => {
     if (showChatModal) {
