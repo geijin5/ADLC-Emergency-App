@@ -134,19 +134,20 @@ jobs:
           if [ -f "android/app/build.gradle" ]; then
             echo "Fixing Kotlin dependency conflicts..."
             if ! grep -q "configurations.all" android/app/build.gradle; then
-              # Use sed to insert configurations block before dependencies
-              sed -i '/^dependencies {/i\
-configurations.all {\
-    exclude group: '\''org.jetbrains.kotlin'\'', module: '\''kotlin-stdlib-jdk7'\''\
-    exclude group: '\''org.jetbrains.kotlin'\'', module: '\''kotlin-stdlib-jdk8'\''\
-}\
-' android/app/build.gradle || sed -i '$a\
-configurations.all {\
-    exclude group: '\''org.jetbrains.kotlin'\'', module: '\''kotlin-stdlib-jdk7'\''\
-    exclude group: '\''org.jetbrains.kotlin'\'', module: '\''kotlin-stdlib-jdk8'\''\
-}\
-' android/app/build.gradle
-              echo "Added Kotlin dependency exclusions"
+              echo 'import sys' > /tmp/fix_kotlin.py
+              echo "with open('android/app/build.gradle', 'r') as f:" >> /tmp/fix_kotlin.py
+              echo '    lines = f.readlines()' >> /tmp/fix_kotlin.py
+              echo "deps_idx = next((i for i, line in enumerate(lines) if line.strip().startswith('dependencies {')), -1)" >> /tmp/fix_kotlin.py
+              echo "config = '\nconfigurations.all {\n    exclude group: \\'org.jetbrains.kotlin\\', module: \\'kotlin-stdlib-jdk7\\'\n    exclude group: \\'org.jetbrains.kotlin\\', module: \\'kotlin-stdlib-jdk8\\'\n}\n\n'" >> /tmp/fix_kotlin.py
+              echo 'if deps_idx >= 0:' >> /tmp/fix_kotlin.py
+              echo '    lines.insert(deps_idx, config)' >> /tmp/fix_kotlin.py
+              echo 'else:' >> /tmp/fix_kotlin.py
+              echo '    lines.append(config)' >> /tmp/fix_kotlin.py
+              echo "with open('android/app/build.gradle', 'w') as f:" >> /tmp/fix_kotlin.py
+              echo '    f.writelines(lines)' >> /tmp/fix_kotlin.py
+              echo "print('Added Kotlin dependency exclusions')" >> /tmp/fix_kotlin.py
+              python3 /tmp/fix_kotlin.py
+              rm -f /tmp/fix_kotlin.py
             else
               echo "Kotlin dependency exclusions already exist"
             fi
