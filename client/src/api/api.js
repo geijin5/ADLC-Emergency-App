@@ -25,12 +25,14 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 || error.response?.status === 403) {
       // Token is invalid or expired - clear auth data
       localStorage.removeItem('token');
       localStorage.removeItem('user');
+      // Trigger a custom event so AuthContext can update
+      window.dispatchEvent(new Event('storage'));
       // Only redirect if not already on login page
-      if (window.location.pathname !== '/personnel/login') {
+      if (window.location.pathname !== '/personnel/login' && !window.location.pathname.includes('/personnel/login')) {
         window.location.href = '/personnel/login';
       }
     }
