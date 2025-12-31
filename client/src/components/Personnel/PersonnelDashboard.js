@@ -663,7 +663,7 @@ const PersonnelDashboard = () => {
       missing_person_age: operation.missing_person_age || '',
       missing_person_description: operation.missing_person_description || '',
       last_seen_location: operation.last_seen_location || '',
-      last_seen_time: operation.last_seen_time ? operation.last_seen_time.substring(0, 16) : '',
+      last_seen_time: toLocalDateTimeString(operation.last_seen_time),
       contact_name: operation.contact_name || '',
       contact_phone: operation.contact_phone || '',
       assigned_team: operation.assigned_team || '',
@@ -875,7 +875,7 @@ const PersonnelDashboard = () => {
       longitude: area.longitude ? area.longitude.toString() : '-112.9422',
       radius: displayRadius,
       reason: area.reason || '',
-      expires_at: area.expires_at ? area.expires_at.substring(0, 16) : ''
+      expires_at: toLocalDateTimeString(area.expires_at)
     });
     setShowAreaModal(true);
   };
@@ -1104,7 +1104,7 @@ const PersonnelDashboard = () => {
       crossroads: route.crossroads || '',
       streets: '',
       coordinates: coordsText,
-      expires_at: route.expires_at ? route.expires_at.substring(0, 16) : ''
+      expires_at: toLocalDateTimeString(route.expires_at)
     });
     if (type === 'parade') {
       setShowRouteModal(true);
@@ -1334,7 +1334,7 @@ const PersonnelDashboard = () => {
       crossroads: road.crossroads || '',
       streets: '',
       coordinates: coordsText,
-      expires_at: road.expires_at ? road.expires_at.substring(0, 16) : ''
+      expires_at: toLocalDateTimeString(road.expires_at)
     });
     setShowClosedRoadModal(true);
   };
@@ -1371,6 +1371,19 @@ const PersonnelDashboard = () => {
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleString();
+  };
+
+  // Convert UTC ISO date string to local datetime-local format (YYYY-MM-DDTHH:mm)
+  const toLocalDateTimeString = (utcDateString) => {
+    if (!utcDateString) return '';
+    const date = new Date(utcDateString);
+    // Get local date components
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
   };
 
   return (
