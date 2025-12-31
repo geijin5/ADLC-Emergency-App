@@ -133,40 +133,20 @@ jobs:
         run: |
           if [ -f "android/app/build.gradle" ]; then
             echo "Fixing Kotlin dependency conflicts..."
-            # Add configurations block to exclude duplicate Kotlin stdlib modules
             if ! grep -q "configurations.all" android/app/build.gradle; then
-              # Use Python to properly insert the configurations block before dependencies
-              python3 << 'PYEOF'
-with open('android/app/build.gradle', 'r') as f:
-    lines = f.readlines()
-
-# Find the dependencies line
-deps_idx = -1
-for i, line in enumerate(lines):
-    if line.strip().startswith('dependencies {'):
-        deps_idx = i
-        break
-
-# Prepare the configurations block
-config_block = [
-    '\n',
-    'configurations.all {\n',
-    "    exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk7'\n",
-    "    exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk8'\n",
-    '}\n',
-    '\n'
-]
-
-# Insert before dependencies or at the end
-if deps_idx >= 0:
-    lines = lines[:deps_idx] + config_block + lines[deps_idx:]
-else:
-    lines.extend(config_block)
-
-with open('android/app/build.gradle', 'w') as f:
-    f.writelines(lines)
-print("Added Kotlin dependency exclusions")
-PYEOF
+              # Use sed to insert configurations block before dependencies
+              sed -i '/^dependencies {/i\
+configurations.all {\
+    exclude group: '\''org.jetbrains.kotlin'\'', module: '\''kotlin-stdlib-jdk7'\''\
+    exclude group: '\''org.jetbrains.kotlin'\'', module: '\''kotlin-stdlib-jdk8'\''\
+}\
+' android/app/build.gradle || sed -i '$a\
+configurations.all {\
+    exclude group: '\''org.jetbrains.kotlin'\'', module: '\''kotlin-stdlib-jdk7'\''\
+    exclude group: '\''org.jetbrains.kotlin'\'', module: '\''kotlin-stdlib-jdk8'\''\
+}\
+' android/app/build.gradle
+              echo "Added Kotlin dependency exclusions"
             else
               echo "Kotlin dependency exclusions already exist"
             fi
