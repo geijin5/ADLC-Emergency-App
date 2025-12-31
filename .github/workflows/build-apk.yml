@@ -1,4 +1,4 @@
-name: Build APK and Deploy
+name: Build APK
 
 on:
   push:
@@ -11,6 +11,7 @@ on:
 jobs:
   build-apk:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     
     steps:
       - name: Checkout code
@@ -32,6 +33,7 @@ jobs:
           CI=false npm run build
           cd ..
           echo "✅ React app built successfully"
+          ls -la client/build/ | head -10
 
       - name: Setup Java JDK
         uses: actions/setup-java@v4
@@ -42,101 +44,84 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Bubblewrap CLI
-        run: npm install -g @bubblewrap/cli
+      - name: Install Capacitor CLI
+        run: npm install -g @capacitor/cli
 
-      - name: Prepare app URL
-        id: app_url
+      - name: Initialize Capacitor (if needed)
+        working-directory: client
+        continue-on-error: true
         run: |
-          APP_URL="${{ secrets.APP_URL }}"
-          if [ -z "$APP_URL" ]; then
-            # Try to construct from repository or use default
-            APP_URL="https://adlc-emergency-app.onrender.com"
+          if [ ! -f "capacitor.config.json" ] && [ ! -f "capacitor.config.ts" ]; then
+            npx cap init "ADLC Emergency Services" "com.adlc.emergency" --web-dir=build || true
           fi
-          echo "Using app URL: $APP_URL"
-          echo "app_url=$APP_URL" >> $GITHUB_OUTPUT
 
-      - name: Initialize TWA project
+      - name: Add Android platform
         working-directory: client
         continue-on-error: true
         run: |
-          APP_URL="${{ steps.app_url.outputs.app_url }}"
-          echo "Initializing TWA with URL: $APP_URL"
-          
-          # Create TWA directory if it doesn't exist
-          mkdir -p twa
-          
-          # Initialize using bubblewrap (non-interactive)
-          echo "n" | bubblewrap init \
-            --manifest="$APP_URL/manifest.json" \
-            --directory=twa \
-            --package-id=com.adlc.emergency || {
-            echo "Bubblewrap init failed, creating manual config..."
-            
-            # Create manual TWA manifest
-            cat > twa/twa-manifest.json << EOF
-          {
-            "packageId": "com.adlc.emergency",
-            "host": "$(echo $APP_URL | sed 's|https\?://||' | sed 's|/.*||')",
-            "name": "ADLC Emergency Services",
-            "launcherName": "ADLC Emergency",
-            "display": "standalone",
-            "themeColor": "#1f2937",
-            "navigationColor": "#1f2937",
-            "backgroundColor": "#111827",
-            "enableNotifications": true,
-            "startUrl": "/",
-            "iconUrl": "$APP_URL/logo.png",
-            "maskableIconUrl": "$APP_URL/logo.png",
-            "monochromeIconUrl": "$APP_URL/logo.png",
-            "shortcuts": [],
-            "generatorApp": "bubblewrap-cli",
-            "webManifestUrl": "$APP_URL/manifest.json",
-            "appVersionName": "${{ github.ref_name || '1.0.0' }}",
-            "appVersionCode": ${{ github.run_number }},
-            "minSdkVersion": 19,
-            "orientation": "default",
-            "fingerprints": [],
-            "additionalTrustedOrigins": [],
-            "retainedBundles": [],
-            "appVersion": "1.0.0"
-          }
-          EOF
-          }
+          if [ ! -d "android" ]; then
+            npx cap add android || true
+          fi
 
-      - name: Build APK with Bubblewrap
+      - name: Sync web assets to Android
         working-directory: client
         continue-on-error: true
         run: |
-          if [ -d "twa" ]; then
-            cd twa
-            echo "Building APK in twa directory..."
-            bubblewrap build --skipSigning || bubblewrap build
-            cd ..
+          if [ -d "android" ]; then
+            npx cap sync android || true
+          fi
+
+      - name: Update Android build configuration
+        working-directory: client
+        run: |
+          if [ -f "android/app/build.gradle" ]; then
+            # Update version code and name
+            sed -i 's/versionCode [0-9]*/versionCode '${{ github.run_number }}'/' android/app/build.gradle || true
+            sed -i 's/versionName ".*"/versionName "'${{ github.ref_name || '1.0.0' }}'"/' android/app/build.gradle || true
+            echo "✅ Android build config updated"
           else
-            echo "TWA directory not found, trying direct build..."
-            bubblewrap build --skipSigning --skipPwaValidation || true
+            echo "⚠️ Android directory not found, skipping config update"
           fi
 
-      - name: Find APK files
+      - name: Build APK with Gradle
+        working-directory: client/android
+        continue-on-error: true
+        run: |
+          if [ -f "gradlew" ]; then
+            chmod +x gradlew
+            ./gradlew assembleRelease || ./gradlew assembleDebug
+            echo "✅ Gradle build completed"
+          else
+            echo "❌ gradlew not found"
+            exit 1
+          fi
+
+      - name: Find APK file
         id: find_apk
         working-directory: client
         run: |
           echo "Searching for APK files..."
-          find . -name "*.apk" -type f 2>/dev/null | head -20
+          find . -name "*.apk" -type f 2>/dev/null | while read file; do
+            echo "Found: $file ($(du -h "$file" | cut -f1))"
+          done
           
-          APK_PATH=$(find . -name "*.apk" -type f 2>/dev/null | head -n 1)
+          APK_PATH=$(find . -path "*/release/*.apk" -o -path "*/debug/*.apk" -type f 2>/dev/null | head -n 1)
+          
+          if [ -z "$APK_PATH" ]; then
+            APK_PATH=$(find . -name "*.apk" -type f 2>/dev/null | head -n 1)
+          fi
+          
           if [ -n "$APK_PATH" ]; then
             echo "✅ APK found at: $APK_PATH"
             echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
             echo "apk_found=true" >> $GITHUB_OUTPUT
             ls -lh "$APK_PATH"
           else
-            echo "❌ APK not found"
+            echo "❌ APK not found after build"
             echo "apk_found=false" >> $GITHUB_OUTPUT
-            echo "Listing build directories:"
-            ls -la twa/ 2>/dev/null || echo "No twa directory"
-            find . -type d -name "app" -o -name "build" 2>/dev/null | head -10
+            echo "Listing android directory structure:"
+            find android -type d -name "app" -o -name "build" 2>/dev/null | head -20
+            ls -la android/app/ 2>/dev/null || true
           fi
 
       - name: Upload APK artifact
@@ -147,15 +132,23 @@ jobs:
           path: ${{ steps.find_apk.outputs.apk_path }}
           retention-days: 90
 
-      - name: Build status
+      - name: Build failure notification
         if: steps.find_apk.outputs.apk_found != 'true'
         run: |
-          echo "⚠️ APK build failed or APK not found"
-          echo "This might be because:"
-          echo "1. The app needs to be deployed first (so manifest.json is accessible)"
-          echo "2. Bubblewrap needs the APP_URL secret set to your deployed URL"
-          echo "3. Check the build logs above for errors"
-          exit 1
+          echo "⚠️ APK build completed but APK file not found"
+          echo ""
+          echo "This could happen if:"
+          echo "1. Capacitor Android platform wasn't properly initialized"
+          echo "2. Gradle build had errors (check logs above)"
+          echo "3. APK was built but in an unexpected location"
+          echo ""
+          echo "To fix this:"
+          echo "- Check the build logs above for Gradle errors"
+          echo "- Ensure the React build completed successfully"
+          echo "- Try running 'npx cap add android' locally first"
+          echo ""
+          echo "Note: This failure does NOT affect Render deployment."
+          echo "The web app will still deploy successfully to Render."
 
       - name: Create GitHub Release
         if: github.event_name == 'release' && steps.find_apk.outputs.apk_found == 'true'
@@ -164,12 +157,12 @@ jobs:
           files: ${{ steps.find_apk.outputs.apk_path }}
           draft: false
           prerelease: false
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Render deployment happens automatically on push via Render's webhook
-  # This job is just a placeholder to show the workflow completes
-  deploy-notification:
+  # Render deployment notification (Render deploys automatically via webhook)
+  deploy-info:
     runs-on: ubuntu-latest
     needs: build-apk
     if: always()
@@ -177,9 +170,11 @@ jobs:
       - name: Deployment Status
         run: |
           if [ "${{ needs.build-apk.result }}" == "success" ]; then
-            echo "✅ APK build successful! Render deployment will happen automatically on push."
+            echo "✅ APK build successful!"
             echo "📱 APK is available in the workflow artifacts."
           else
-            echo "⚠️ APK build had issues. Render deployment will still happen automatically."
-            echo "Check the build-apk job logs for details."
+            echo "⚠️ APK build had issues (see build-apk job)."
           fi
+          echo ""
+          echo "🌐 Render deployment happens automatically on push via webhook."
+          echo "   Check your Render dashboard for deployment status."

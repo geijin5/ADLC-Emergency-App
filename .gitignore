@@ -43,10 +43,13 @@ Thumbs.db
 coverage/
 .nyc_output/
 
-# Android/TWA build files
-client/twa/
+# Android/Capacitor build files
+client/android/
+client/ios/
+client/.capacitor/
 client/*.apk
 *.apk
 *.aab
+client/twa/
 client/twa-manifest.json
 
