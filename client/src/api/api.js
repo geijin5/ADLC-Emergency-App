@@ -30,7 +30,7 @@ api.interceptors.response.use(
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       // Trigger a custom event so AuthContext can update
-      window.dispatchEvent(new Event('storage'));
+      window.dispatchEvent(new Event('authChange'));
       // Only redirect if not already on login page
       if (window.location.pathname !== '/personnel/login' && !window.location.pathname.includes('/personnel/login')) {
         window.location.href = '/personnel/login';

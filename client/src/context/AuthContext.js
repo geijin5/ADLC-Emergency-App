@@ -42,8 +42,8 @@ export const AuthProvider = ({ children }) => {
 
     checkAuth();
 
-    // Listen for storage changes (cross-tab/window) and custom events (same window)
-    const handleStorageChange = (e) => {
+    // Listen for auth state changes
+    const handleAuthChange = () => {
       const token = localStorage.getItem('token');
       const userData = localStorage.getItem('user');
       if (token && userData) {
@@ -58,12 +58,13 @@ export const AuthProvider = ({ children }) => {
     };
 
     // Listen for cross-tab storage events
-    window.addEventListener('storage', handleStorageChange);
-    // Listen for same-window storage events (dispatched by API interceptor)
-    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('storage', handleAuthChange);
+    // Listen for same-window auth changes (dispatched by API interceptor)
+    window.addEventListener('authChange', handleAuthChange);
     
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('storage', handleAuthChange);
+      window.removeEventListener('authChange', handleAuthChange);
     };
   }, []);
 
