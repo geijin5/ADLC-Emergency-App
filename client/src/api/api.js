@@ -1,9 +1,48 @@
 import axios from 'axios';
 
-// In production, use relative path since server and client are on same domain
+// Determine API base URL
+// In Capacitor (native app), always use the production server URL
+// In web production, use relative path since server and client are on same domain
 // In development, use localhost or REACT_APP_API_URL if set
-const API_BASE_URL = process.env.REACT_APP_API_URL || 
-  (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:5000/api');
+const getApiBaseUrl = () => {
+  // Check if running in Capacitor (native app)
+  // Capacitor apps have window.Capacitor or the URL starts with capacitor:// or file://
+  const isCapacitor = typeof window !== 'undefined' && (
+    window.Capacitor || 
+    window.CapacitorWeb ||
+    (window.location && (
+      window.location.protocol === 'capacitor:' ||
+      window.location.protocol === 'file:' ||
+      window.location.hostname === 'localhost' && window.location.port === ''
+    ))
+  );
+  
+  // If REACT_APP_API_URL is explicitly set, use it
+  if (process.env.REACT_APP_API_URL) {
+    console.log('Using REACT_APP_API_URL:', process.env.REACT_APP_API_URL);
+    return process.env.REACT_APP_API_URL;
+  }
+  
+  // If running in Capacitor, use production server URL
+  if (isCapacitor) {
+    const prodUrl = process.env.REACT_APP_PROD_API_URL || 'https://adlc-emergency-app.onrender.com/api';
+    console.log('Running in Capacitor, using production API URL:', prodUrl);
+    return prodUrl;
+  }
+  
+  // In web production (not Capacitor), use relative path
+  if (process.env.NODE_ENV === 'production') {
+    console.log('Running in web production, using relative API path: /api');
+    return '/api';
+  }
+  
+  // Development: use localhost
+  console.log('Running in development, using localhost API: http://localhost:5000/api');
+  return 'http://localhost:5000/api';
+};
+
+const API_BASE_URL = getApiBaseUrl();
+console.log('API Base URL configured as:', API_BASE_URL);
 
 const api = axios.create({
   baseURL: API_BASE_URL,
