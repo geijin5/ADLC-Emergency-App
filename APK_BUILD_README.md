@@ -1,12 +1,13 @@
 # APK Build Instructions
 
-This project includes a GitHub Actions workflow that automatically builds an Android APK from the PWA on every push to the `main` branch.
+This project includes a GitHub Actions workflow that automatically builds an Android APK from the React app on every push to the `main` branch.
 
 ## How It Works
 
 1. **Automatic Build**: When you push to the `main` branch, GitHub Actions will:
    - Build the React app
-   - Use Bubblewrap (Google's TWA tool) to convert the PWA to an Android APK
+   - Use Capacitor to wrap the app as a native Android app
+   - Build the APK using Gradle
    - Upload the APK as a workflow artifact
    - Create a GitHub release if a release tag is created
 
@@ -28,13 +29,7 @@ When you create a GitHub release:
 
 ## Configuration
 
-### Required Secrets (Optional)
-
-If you want to use a custom app URL, add this secret in GitHub Settings → Secrets and variables → Actions:
-
-- `APP_URL`: Your deployed app URL (e.g., `https://your-app.onrender.com`)
-
-If not set, it will use a default URL. The workflow will still work without this secret.
+No additional configuration is required! The workflow works automatically using the local build files.
 
 ## Manual Build
 
@@ -47,24 +42,30 @@ npm run install-all
 # Build React app
 cd client
 npm run build
-cd ..
 
-# Install Bubblewrap CLI
-npm install -g @bubblewrap/cli
+# Install Capacitor CLI (if not already installed)
+npm install -g @capacitor/cli
 
-# Initialize TWA project (first time only)
-cd client
-bubblewrap init --manifest=https://your-app-url/manifest.json
+# Initialize Capacitor (first time only)
+npx cap init "ADLC Emergency Services" "com.adlc.emergency" --web-dir=build
+
+# Add Android platform (first time only)
+npx cap add android
+
+# Sync web assets
+npx cap sync android
 
 # Build APK
-bubblewrap build
+cd android
+./gradlew assembleRelease
 ```
 
-The APK will be in the `client/twa/` directory.
+The APK will be in `client/android/app/build/outputs/apk/release/`.
 
 ## Notes
 
 - The APK is built unsigned (for testing). To distribute, you'll need to sign it with a keystore.
-- The workflow uses Bubblewrap, which creates a Trusted Web Activity (TWA) wrapper around your PWA.
+- The workflow uses Capacitor, which wraps your React app in a native Android container.
 - Render deployment happens automatically via webhook - no changes needed.
+- If the APK build fails, it won't block Render deployment.
 
