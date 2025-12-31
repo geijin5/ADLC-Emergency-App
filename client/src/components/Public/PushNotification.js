@@ -13,6 +13,7 @@ const PushNotification = () => {
   }, []);
 
   const checkSupportAndSubscription = async () => {
+    // Check basic support
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
       setIsSupported(false);
       setIsLoading(false);
@@ -27,14 +28,13 @@ const PushNotification = () => {
         const vapidResponse = await getVapidPublicKey();
         if (!vapidResponse.data || !vapidResponse.data.publicKey) {
           console.warn('VAPID keys not configured on server');
+          // Still show the button, but it will show an error when clicked
           setIsLoading(false);
           return;
         }
       } catch (vapidError) {
         console.error('VAPID keys not available:', vapidError);
-        if (vapidError.response?.status === 503) {
-          console.warn('Push notifications are not configured on the server');
-        }
+        // Still show the button - user can try to subscribe
         setIsLoading(false);
         return;
       }
@@ -43,7 +43,7 @@ const PushNotification = () => {
       let registration = await navigator.serviceWorker.getRegistration();
       
       if (!registration) {
-        // No registration exists, but we don't need to register it yet
+        // No registration exists, but we can still show the button
         // Registration will happen when user clicks subscribe
         setIsSubscribed(false);
         setIsLoading(false);
@@ -60,6 +60,7 @@ const PushNotification = () => {
         ]);
       } catch (timeoutError) {
         console.warn('Service worker not ready yet:', timeoutError.message);
+        // Still show the button - it will register when clicked
         setIsSubscribed(false);
         setIsLoading(false);
         return;
@@ -428,15 +429,34 @@ const PushNotification = () => {
     }
   };
 
+  // Always show the notification card if supported, even if there are errors
+  // This ensures users can see and interact with it in the app
   if (!isSupported) {
-    return null; // Don't show anything if push notifications aren't supported
+    return (
+      <div className="card" style={{ marginTop: '20px', marginBottom: '20px', opacity: 0.6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '15px' }}>
+          <div>
+            <h3 style={{ margin: '0 0 5px 0', color: '#f9fafb' }}>🔔 Push Notifications</h3>
+            <p style={{ margin: 0, color: '#d1d5db', fontSize: '14px' }}>
+              Push notifications are not supported in this browser
+            </p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="card" style={{ marginTop: '20px', marginBottom: '20px' }}>
+    <div className="card" style={{ 
+      marginTop: '20px', 
+      marginBottom: '20px', 
+      backgroundColor: '#1f2937', 
+      border: '2px solid #3b82f6',
+      boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)'
+    }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '15px' }}>
-        <div>
-          <h3 style={{ margin: '0 0 5px 0', color: '#f9fafb' }}>🔔 Push Notifications</h3>
+        <div style={{ flex: 1, minWidth: '200px' }}>
+          <h3 style={{ margin: '0 0 5px 0', color: '#f9fafb', fontSize: '18px', fontWeight: '600' }}>🔔 Push Notifications</h3>
           <p style={{ margin: 0, color: '#d1d5db', fontSize: '14px' }}>
             Get instant emergency alerts delivered to your device
           </p>
@@ -447,10 +467,15 @@ const PushNotification = () => {
           className={isSubscribed ? 'btn btn-secondary' : 'btn btn-success'}
           style={{
             whiteSpace: 'nowrap',
-            padding: '10px 20px'
+            padding: '12px 24px',
+            fontSize: '16px',
+            fontWeight: '600',
+            minHeight: '48px',
+            minWidth: '160px',
+            cursor: isLoading ? 'not-allowed' : 'pointer'
           }}
         >
-          {isLoading ? 'Loading...' : isSubscribed ? '🔕 Disable Notifications' : '🔔 Enable Notifications'}
+          {isLoading ? 'Loading...' : isSubscribed ? '🔕 Disable' : '🔔 Enable Notifications'}
         </button>
       </div>
     </div>

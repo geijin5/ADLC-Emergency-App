@@ -483,6 +483,20 @@ body {
     margin-top: 16px;
   }
   
+  /* Push notification button - make it full width on mobile */
+  .card button.btn-success,
+  .card button.btn-secondary {
+    width: 100% !important;
+    margin-top: 12px;
+    min-width: 100% !important;
+  }
+  
+  /* Ensure notification card content stacks on mobile */
+  .card > div[style*="display: flex"] {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  
   /* Stack button groups vertically on mobile */
   .btn-group {
     flex-direction: column;

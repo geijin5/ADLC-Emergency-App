@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { createAlert, getUsers, createUser, updateUser, deleteUser, getDepartments, createDepartment, updateDepartment, deleteDepartment, getPersonnelClosedAreas, createClosedArea, updateClosedArea, deleteClosedArea, getPersonnelParadeRoutes, createParadeRoute, updateParadeRoute, deleteParadeRoute, getPersonnelDetours, createDetour, updateDetour, deleteDetour, getPersonnelClosedRoads, createClosedRoad, updateClosedRoad, deleteClosedRoad, deleteAllClosedRoads, getCallouts, createCallout, acknowledgeCallout, updateCallout, getChatMessages, sendChatMessage, getPersonnelSearchRescue, createSearchRescue, updateSearchRescue, deleteSearchRescue } from '../../api/api';
 import MapView from '../Public/MapView';
 import PersonnelPushNotification from './PersonnelPushNotification';
+import './PersonnelDashboard.css';
 
 const PersonnelDashboard = () => {
   const navigate = useNavigate();
@@ -1422,7 +1423,7 @@ const PersonnelDashboard = () => {
   };
 
   return (
-    <div className="App">
+    <div className="App personnel-dashboard">
       <nav className="navbar">
         <div className="navbar-content">
           <div className="navbar-brand" style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
@@ -1430,7 +1431,7 @@ const PersonnelDashboard = () => {
             <span style={{ fontSize: '20px' }}>ADLC Emergency Services - Personnel</span>
           </div>
           <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-            <span style={{ fontSize: '14px' }}>Welcome, {user?.name || user?.username}</span>
+            <span className="welcome-text" style={{ fontSize: '14px' }}>Welcome, {user?.name || user?.username}</span>
             <button onClick={logout} className="btn btn-secondary" style={{ padding: '8px 16px', fontSize: '14px' }}>
               Logout
             </button>
@@ -1439,8 +1440,8 @@ const PersonnelDashboard = () => {
       </nav>
 
       <div className="container">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-          <h1 style={{ margin: 0, color: '#f9fafb' }}>Emergency Personnel Dashboard</h1>
+        <div className="dashboard-header">
+          <h1>Emergency Personnel Dashboard</h1>
           {user?.department_name === 'County Attorney' && (
             <button
               onClick={() => navigate('/county-attorney/dashboard')}
@@ -1462,67 +1463,52 @@ const PersonnelDashboard = () => {
                 {callouts.map((callout) => {
                   const acknowledged = callout.acknowledged_by ? JSON.parse(callout.acknowledged_by) : [];
                   const isAcknowledged = acknowledged.includes(user?.id);
+                  const departmentColor = callout.department_color || '#dc2626';
+                  const departmentColorDark = callout.department_color ? 
+                    callout.department_color.replace(/(\d+)/g, (match) => Math.max(0, parseInt(match) - 30)) : 
+                    '#991b1b';
                   return (
                     <div
                       key={callout.id}
+                      className={`callout-card ${isAcknowledged ? 'acknowledged' : ''}`}
                       style={{
-                        background: `linear-gradient(135deg, ${callout.department_color || '#dc2626'} 0%, ${callout.department_color || '#991b1b'} 100%)`,
-                        color: 'white',
-                        padding: '20px',
-                        borderRadius: '8px',
-                        marginBottom: '15px',
-                        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-                        border: isAcknowledged ? '3px solid #10b981' : '3px solid transparent'
+                        '--callout-color': departmentColor,
+                        '--callout-color-dark': departmentColorDark
                       }}
                     >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                      <div className="callout-card-content">
+                        <div className="callout-card-main">
+                          <div className="callout-card-header">
                             <span style={{ fontSize: '24px' }}>🚨</span>
-                            <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 'bold' }}>
+                            <h3 className="callout-card-title">
                               MASS CALLOUT - {callout.department_name?.toUpperCase()}
                             </h3>
                             {isAcknowledged && (
-                              <span style={{ 
-                                padding: '4px 12px', 
-                                backgroundColor: '#10b981', 
-                                borderRadius: '12px',
-                                fontSize: '12px',
-                                fontWeight: '600'
-                              }}>
+                              <span className="callout-card-badge">
                                 ✓ ACKNOWLEDGED
                               </span>
                             )}
                           </div>
-                          <h4 style={{ margin: '5px 0', fontSize: '18px' }}>{callout.title}</h4>
-                          <p style={{ margin: '10px 0', fontSize: '16px', lineHeight: '1.6' }}>
+                          <h4 className="callout-card-subtitle">{callout.title}</h4>
+                          <p className="callout-card-message">
                             {callout.message}
                           </p>
                           {callout.location && (
-                            <p style={{ margin: '5px 0', fontSize: '14px', opacity: 0.9 }}>
+                            <p className="callout-card-info">
                               📍 <strong>Location:</strong> {callout.location}
                             </p>
                           )}
-                          <p style={{ margin: '5px 0', fontSize: '12px', opacity: 0.8 }}>
+                          <p className="callout-card-meta">
                             Priority: <strong>{callout.priority.toUpperCase()}</strong> | 
                             Issued: {formatDate(callout.created_at)} | 
                             By: {callout.created_by_name}
                           </p>
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginLeft: '20px' }}>
+                        <div className="callout-card-actions">
                           {!isAcknowledged && (
                             <button
                               onClick={() => handleAcknowledgeCallout(callout.id)}
-                              className="btn"
-                              style={{
-                                backgroundColor: '#10b981',
-                                color: 'white',
-                                border: 'none',
-                                padding: '10px 20px',
-                                borderRadius: '5px',
-                                cursor: 'pointer',
-                                fontWeight: '600'
-                              }}
+                              className="callout-action-btn acknowledge"
                             >
                               ✓ Acknowledge
                             </button>
@@ -1530,16 +1516,7 @@ const PersonnelDashboard = () => {
                           {(user?.role === 'admin' || callout.created_by === user?.id) && (
                             <button
                               onClick={() => handleDeactivateCallout(callout.id)}
-                              className="btn"
-                              style={{
-                                backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                                color: 'white',
-                                border: '2px solid white',
-                                padding: '10px 20px',
-                                borderRadius: '5px',
-                                cursor: 'pointer',
-                                fontWeight: '600'
-                              }}
+                              className="callout-action-btn deactivate"
                             >
                               Deactivate
                             </button>
@@ -1552,7 +1529,7 @@ const PersonnelDashboard = () => {
               </div>
             )}
 
-            <div style={{ marginBottom: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <div className="dashboard-actions">
               <button 
                 onClick={() => {
                   setShowCalloutModal(true);
@@ -1699,12 +1676,12 @@ const PersonnelDashboard = () => {
               />
             </div>
 
-            <div id="closed-areas-section" className="card" style={{ marginTop: '30px', scrollMarginTop: '80px' }}>
+            <div id="closed-areas-section" className="card dashboard-section">
               <h2 style={{ marginBottom: '20px' }}>Closed Areas Management</h2>
               {closedAreas.length === 0 ? (
                 <p style={{ textAlign: 'center', color: '#6b7280' }}>No closed areas defined.</p>
               ) : (
-                <div style={{ overflowX: 'auto' }}>
+                <div className="table-wrapper">
                   <table className="table">
                     <thead>
                       <tr>
@@ -1751,25 +1728,23 @@ const PersonnelDashboard = () => {
                             {area.expires_at ? formatDate(area.expires_at) : 'No expiration'}
                           </td>
                           <td>
-                            <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                            <div className="table-action-group">
                               <button
                                 onClick={() => handleEditArea(area)}
-                                className="btn btn-primary"
-                                style={{ padding: '5px 10px', fontSize: '12px' }}
+                                className="btn btn-primary table-action-btn"
                               >
                                 Edit
                               </button>
                               <button
                                 onClick={() => handleToggleArea(area.id, area.is_active)}
-                                className={`btn ${area.is_active ? 'btn-secondary' : 'btn-success'}`}
-                                style={{ padding: '5px 10px', fontSize: '12px' }}
+                                className={`btn ${area.is_active ? 'btn-secondary' : 'btn-success'} table-action-btn`}
                               >
                                 {area.is_active ? 'Deactivate' : 'Activate'}
                               </button>
                               <button
                                 onClick={() => handleDeleteArea(area.id)}
-                                className="btn btn-primary"
-                                style={{ padding: '5px 10px', fontSize: '12px', backgroundColor: '#ef4444' }}
+                                className="btn table-action-btn"
+                                style={{ backgroundColor: '#ef4444' }}
                               >
                                 Delete
                               </button>
@@ -1784,12 +1759,12 @@ const PersonnelDashboard = () => {
             </div>
 
             {/* Parade Routes Management */}
-            <div id="parade-routes-section" className="card" style={{ marginTop: '30px', scrollMarginTop: '80px' }}>
+            <div id="parade-routes-section" className="card dashboard-section">
               <h2 style={{ marginBottom: '20px' }}>Parade Routes Management</h2>
               {paradeRoutes.length === 0 ? (
                 <p style={{ textAlign: 'center', color: '#6b7280' }}>No parade routes defined.</p>
               ) : (
-                <div style={{ overflowX: 'auto' }}>
+                <div className="table-wrapper">
                   <table className="table">
                     <thead>
                       <tr>
@@ -1825,25 +1800,23 @@ const PersonnelDashboard = () => {
                             {route.expires_at ? formatDate(route.expires_at) : 'No expiration'}
                           </td>
                           <td>
-                            <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                            <div className="table-action-group">
                               <button
                                 onClick={() => handleEditRoute(route, 'parade')}
-                                className="btn btn-primary"
-                                style={{ padding: '5px 10px', fontSize: '12px' }}
+                                className="btn btn-primary table-action-btn"
                               >
                                 Edit
                               </button>
                               <button
                                 onClick={() => handleToggleRoute(route.id, route.is_active, 'parade')}
-                                className={`btn ${route.is_active ? 'btn-secondary' : 'btn-success'}`}
-                                style={{ padding: '5px 10px', fontSize: '12px' }}
+                                className={`btn ${route.is_active ? 'btn-secondary' : 'btn-success'} table-action-btn`}
                               >
                                 {route.is_active ? 'Deactivate' : 'Activate'}
                               </button>
                               <button
                                 onClick={() => handleDeleteRoute(route.id, 'parade')}
-                                className="btn btn-primary"
-                                style={{ padding: '5px 10px', fontSize: '12px', backgroundColor: '#ef4444' }}
+                                className="btn table-action-btn"
+                                style={{ backgroundColor: '#ef4444' }}
                               >
                                 Delete
                               </button>
@@ -1858,12 +1831,12 @@ const PersonnelDashboard = () => {
             </div>
 
             {/* Detours Management */}
-            <div id="detours-section" className="card" style={{ marginTop: '30px', scrollMarginTop: '80px' }}>
+            <div id="detours-section" className="card dashboard-section">
               <h2 style={{ marginBottom: '20px' }}>Detours Management</h2>
               {detours.length === 0 ? (
                 <p style={{ textAlign: 'center', color: '#6b7280' }}>No detours defined.</p>
               ) : (
-                <div style={{ overflowX: 'auto' }}>
+                <div className="table-wrapper">
                   <table className="table">
                     <thead>
                       <tr>
@@ -1899,25 +1872,23 @@ const PersonnelDashboard = () => {
                             {detour.expires_at ? formatDate(detour.expires_at) : 'No expiration'}
                           </td>
                           <td>
-                            <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                            <div className="table-action-group">
                               <button
                                 onClick={() => handleEditRoute(detour, 'detour')}
-                                className="btn btn-primary"
-                                style={{ padding: '5px 10px', fontSize: '12px' }}
+                                className="btn btn-primary table-action-btn"
                               >
                                 Edit
                               </button>
                               <button
                                 onClick={() => handleToggleRoute(detour.id, detour.is_active, 'detour')}
-                                className={`btn ${detour.is_active ? 'btn-secondary' : 'btn-success'}`}
-                                style={{ padding: '5px 10px', fontSize: '12px' }}
+                                className={`btn ${detour.is_active ? 'btn-secondary' : 'btn-success'} table-action-btn`}
                               >
                                 {detour.is_active ? 'Deactivate' : 'Activate'}
                               </button>
                               <button
                                 onClick={() => handleDeleteRoute(detour.id, 'detour')}
-                                className="btn btn-primary"
-                                style={{ padding: '5px 10px', fontSize: '12px', backgroundColor: '#ef4444' }}
+                                className="btn table-action-btn"
+                                style={{ backgroundColor: '#ef4444' }}
                               >
                                 Delete
                               </button>
@@ -1932,7 +1903,7 @@ const PersonnelDashboard = () => {
             </div>
 
             {/* Closed Roads Management */}
-            <div id="closed-roads-section" className="card" style={{ marginTop: '30px', scrollMarginTop: '80px' }}>
+            <div id="closed-roads-section" className="card dashboard-section">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h2 style={{ margin: 0 }}>Closed Roads Management</h2>
                 {closedRoads.length > 0 && (
@@ -1952,7 +1923,7 @@ const PersonnelDashboard = () => {
               {closedRoads.length === 0 ? (
                 <p style={{ textAlign: 'center', color: '#6b7280' }}>No closed roads defined.</p>
               ) : (
-                <div style={{ overflowX: 'auto' }}>
+                <div className="table-wrapper">
                   <table className="table">
                     <thead>
                       <tr>
@@ -1988,25 +1959,23 @@ const PersonnelDashboard = () => {
                             {road.expires_at ? formatDate(road.expires_at) : 'No expiration'}
                           </td>
                           <td>
-                            <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                            <div className="table-action-group">
                               <button
                                 onClick={() => handleEditClosedRoad(road)}
-                                className="btn btn-primary"
-                                style={{ padding: '5px 10px', fontSize: '12px' }}
+                                className="btn btn-primary table-action-btn"
                               >
                                 Edit
                               </button>
                               <button
                                 onClick={() => handleToggleClosedRoad(road.id, road.is_active)}
-                                className={`btn ${road.is_active ? 'btn-secondary' : 'btn-success'}`}
-                                style={{ padding: '5px 10px', fontSize: '12px' }}
+                                className={`btn ${road.is_active ? 'btn-secondary' : 'btn-success'} table-action-btn`}
                               >
                                 {road.is_active ? 'Deactivate' : 'Activate'}
                               </button>
                               <button
                                 onClick={() => handleDeleteClosedRoad(road.id)}
-                                className="btn btn-primary"
-                                style={{ padding: '5px 10px', fontSize: '12px', backgroundColor: '#ef4444' }}
+                                className="btn table-action-btn"
+                                style={{ backgroundColor: '#ef4444' }}
                               >
                                 Delete
                               </button>
@@ -2021,7 +1990,7 @@ const PersonnelDashboard = () => {
             </div>
 
             {/* Search and Rescue Operations */}
-            <div id="search-rescue-section" className="card" style={{ marginTop: '30px', scrollMarginTop: '80px' }}>
+            <div id="search-rescue-section" className="card dashboard-section">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h2 style={{ margin: 0 }}>🔍 Search and Rescue Operations</h2>
                 <button
@@ -2035,7 +2004,7 @@ const PersonnelDashboard = () => {
               {searchRescueOps.length === 0 ? (
                 <p style={{ textAlign: 'center', color: '#6b7280' }}>No search and rescue operations.</p>
               ) : (
-                <div style={{ overflowX: 'auto' }}>
+                <div className="table-wrapper">
                   <table className="table">
                     <thead>
                       <tr>
@@ -2070,19 +2039,18 @@ const PersonnelDashboard = () => {
                             {formatDate(op.created_at)}
                           </td>
                           <td>
-                            <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                            <div className="table-action-group">
                               <button
                                 onClick={() => handleEditSAR(op)}
-                                className="btn btn-primary"
-                                style={{ padding: '5px 10px', fontSize: '12px' }}
+                                className="btn btn-primary table-action-btn"
                               >
                                 Edit
                               </button>
                               <select
                                 value={op.status || 'active'}
                                 onChange={(e) => handleUpdateSARStatus(op.id, e.target.value)}
-                                className="btn"
-                                style={{ padding: '5px 10px', fontSize: '12px', marginRight: '5px' }}
+                                className="btn table-action-btn"
+                                style={{ marginRight: '5px' }}
                               >
                                 <option value="active">Active</option>
                                 <option value="in_progress">In Progress</option>
@@ -2091,8 +2059,8 @@ const PersonnelDashboard = () => {
                               </select>
                               <button
                                 onClick={() => handleDeleteSAR(op.id)}
-                                className="btn btn-primary"
-                                style={{ padding: '5px 10px', fontSize: '12px', backgroundColor: '#ef4444' }}
+                                className="btn table-action-btn"
+                                style={{ backgroundColor: '#ef4444' }}
                               >
                                 Delete
                               </button>

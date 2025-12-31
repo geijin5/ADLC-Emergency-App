@@ -137,35 +137,46 @@ self.addEventListener('push', function(event) {
   let notificationData = {
     title: 'ADLC Emergency Alert',
     body: 'You have a new emergency alert',
-    icon: '/favicon.ico',
-    badge: '/favicon.ico',
+    icon: '/logo.png',
+    badge: '/logo.png',
     tag: 'emergency-alert',
-    requireInteraction: true,
+    requireInteraction: false,
+    vibrate: [200, 100, 200],
     data: {}
   };
-
-  let isCallout = false;
 
   if (event.data) {
     try {
       const data = event.data.json();
       notificationData.title = data.title || notificationData.title;
       notificationData.body = data.message || notificationData.body;
+      notificationData.icon = data.icon || '/logo.png';
+      notificationData.badge = data.badge || '/logo.png';
       notificationData.data = data;
       
       // Check if this is a callout notification
       if (data.type === 'callout' || data.tag === 'mass-callout') {
-        isCallout = true;
         notificationData.tag = 'mass-callout';
         notificationData.requireInteraction = true;
+        notificationData.vibrate = [200, 100, 200, 100, 200, 100, 200, 100, 200];
         // Play alarm sound for callout
         playAlarmSound();
-      }
-      
-      // Set badge color based on severity
-      if (data.severity === 'danger') {
-        notificationData.badge = '/favicon.ico';
-        notificationData.icon = '/favicon.ico';
+      } else if (data.type === 'chat' || data.tag === 'chat-message') {
+        // Chat message notification - less intrusive
+        notificationData.tag = 'chat-message';
+        notificationData.requireInteraction = false;
+        notificationData.vibrate = [200, 100, 200];
+      } else {
+        // Public alert notification
+        notificationData.tag = 'public-alert';
+        // Make danger alerts more noticeable
+        if (data.severity === 'danger') {
+          notificationData.requireInteraction = true;
+          notificationData.vibrate = [300, 100, 300, 100, 300];
+        } else {
+          notificationData.requireInteraction = false;
+          notificationData.vibrate = [200, 100, 200];
+        }
       }
     } catch (e) {
       console.error('Error parsing push notification data:', e);
@@ -182,15 +193,36 @@ self.addEventListener('notificationclick', function(event) {
 
   let url = '/alerts';
   
-  // Check if this is a callout notification
-  if (event.notification.data && event.notification.data.type === 'callout') {
-    url = '/personnel/dashboard';
-  } else if (event.notification.data && event.notification.data.url) {
-    url = event.notification.data.url;
+  // Check notification type and route accordingly
+  if (event.notification.data) {
+    const data = event.notification.data;
+    if (data.type === 'callout' || data.type === 'chat') {
+      // Personnel notifications
+      url = '/personnel/dashboard';
+    } else if (data.url) {
+      // Use explicit URL if provided
+      url = data.url;
+    } else {
+      // Public alert notifications default to alerts page
+      url = '/alerts';
+    }
   }
 
   event.waitUntil(
-    clients.openWindow(url)
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
+      // Check if there's already a window open
+      for (let i = 0; i < clientList.length; i++) {
+        const client = clientList[i];
+        // Try to find a matching client or any open client
+        if (client.url.includes(url) && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      // If no matching window is open, open/focus a new one
+      if (clients.openWindow) {
+        return clients.openWindow(url);
+      }
+    })
   );
 });
 

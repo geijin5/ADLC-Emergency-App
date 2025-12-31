@@ -944,8 +944,14 @@ async function sendPushNotificationToAll(title, message, severity) {
       title: title,
       message: message,
       severity: severity,
-      icon: '/favicon.ico',
-      badge: '/favicon.ico'
+      icon: '/logo.png',
+      badge: '/logo.png',
+      tag: 'public-alert',
+      data: {
+        url: '/alerts',
+        type: 'alert',
+        severity: severity
+      }
     });
 
     const notifications = subscriptions.map(sub => {

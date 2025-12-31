@@ -36,7 +36,10 @@ const PublicHome = () => {
       </div>
 
       <div className="container">
-        <PushNotification />
+        {/* Push Notification Subscription - Always visible */}
+        <div style={{ marginBottom: '20px' }}>
+          <PushNotification />
+        </div>
         <MapView />
         
         <div className="grid">
