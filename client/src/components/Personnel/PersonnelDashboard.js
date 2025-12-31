@@ -1999,7 +1999,7 @@ const PersonnelDashboard = () => {
             </div>
 
             {/* Search and Rescue Operations */}
-            <div className="card" style={{ marginTop: '30px' }}>
+            <div id="search-rescue-section" className="card" style={{ marginTop: '30px', scrollMarginTop: '80px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h2 style={{ margin: 0 }}>🔍 Search and Rescue Operations</h2>
                 <button
