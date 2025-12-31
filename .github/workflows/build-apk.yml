@@ -47,29 +47,70 @@ jobs:
       - name: Install Capacitor CLI
         run: npm install -g @capacitor/cli
 
-      - name: Initialize Capacitor (if needed)
+      - name: Initialize Capacitor
         working-directory: client
-        continue-on-error: true
         run: |
+          # Initialize Capacitor if config doesn't exist
           if [ ! -f "capacitor.config.json" ] && [ ! -f "capacitor.config.ts" ]; then
-            npx cap init "ADLC Emergency Services" "com.adlc.emergency" --web-dir=build || true
+            echo "Initializing Capacitor..."
+            npx cap init "ADLC Emergency Services" "com.adlc.emergency" --web-dir=build || {
+              echo "Capacitor init failed, creating config manually..."
+              cat > capacitor.config.json << EOF
+          {
+            "appId": "com.adlc.emergency",
+            "appName": "ADLC Emergency Services",
+            "webDir": "build",
+            "bundledWebRuntime": false,
+            "server": {
+              "hostname": "${{ secrets.APP_URL || 'adlc-emergency-app.onrender.com' }}",
+              "androidScheme": "https"
+            }
+          }
+          EOF
+            }
+          else
+            echo "Capacitor config already exists"
+          fi
+          
+          # Verify config exists
+          if [ -f "capacitor.config.json" ] || [ -f "capacitor.config.ts" ]; then
+            echo "✅ Capacitor config ready"
+            cat capacitor.config.json 2>/dev/null || cat capacitor.config.ts
+          else
+            echo "❌ Capacitor config not found"
+            exit 1
           fi
 
       - name: Add Android platform
         working-directory: client
-        continue-on-error: true
         run: |
           if [ ! -d "android" ]; then
-            npx cap add android || true
+            echo "Adding Android platform..."
+            npx cap add android || {
+              echo "Failed to add Android platform"
+              exit 1
+            }
+          else
+            echo "Android platform already exists"
+          fi
+          
+          # Verify android directory exists
+          if [ -d "android" ]; then
+            echo "✅ Android platform ready"
+            ls -la android/ | head -10
+          else
+            echo "❌ Android directory not found"
+            exit 1
           fi
 
       - name: Sync web assets to Android
         working-directory: client
-        continue-on-error: true
         run: |
-          if [ -d "android" ]; then
-            npx cap sync android || true
-          fi
+          echo "Syncing web assets to Android..."
+          npx cap sync android || {
+            echo "Cap sync failed, but continuing..."
+          }
+          echo "✅ Sync completed"
 
       - name: Update Android build configuration
         working-directory: client
@@ -80,21 +121,22 @@ jobs:
             sed -i 's/versionName ".*"/versionName "'${{ github.ref_name || '1.0.0' }}'"/' android/app/build.gradle || true
             echo "✅ Android build config updated"
           else
-            echo "⚠️ Android directory not found, skipping config update"
+            echo "⚠️ build.gradle not found, skipping config update"
           fi
 
       - name: Build APK with Gradle
         working-directory: client/android
-        continue-on-error: true
         run: |
-          if [ -f "gradlew" ]; then
-            chmod +x gradlew
-            ./gradlew assembleRelease || ./gradlew assembleDebug
-            echo "✅ Gradle build completed"
-          else
-            echo "❌ gradlew not found"
+          if [ ! -f "gradlew" ]; then
+            echo "❌ gradlew not found in android directory"
+            ls -la
             exit 1
           fi
+          
+          chmod +x gradlew
+          echo "Building APK..."
+          ./gradlew assembleRelease || ./gradlew assembleDebug
+          echo "✅ Gradle build completed"
 
       - name: Find APK file
         id: find_apk
@@ -105,7 +147,16 @@ jobs:
             echo "Found: $file ($(du -h "$file" | cut -f1))"
           done
           
-          APK_PATH=$(find . -path "*/release/*.apk" -o -path "*/debug/*.apk" -type f 2>/dev/null | head -n 1)
+          # Look for release APK first, then debug
+          APK_PATH=$(find android/app/build/outputs/apk/release -name "*.apk" -type f 2>/dev/null | head -n 1)
+          
+          if [ -z "$APK_PATH" ]; then
+            APK_PATH=$(find android/app/build/outputs/apk/debug -name "*.apk" -type f 2>/dev/null | head -n 1)
+          fi
+          
+          if [ -z "$APK_PATH" ]; then
+            APK_PATH=$(find android -name "*.apk" -type f 2>/dev/null | head -n 1)
+          fi
           
           if [ -z "$APK_PATH" ]; then
             APK_PATH=$(find . -name "*.apk" -type f 2>/dev/null | head -n 1)
@@ -119,9 +170,9 @@ jobs:
           else
             echo "❌ APK not found after build"
             echo "apk_found=false" >> $GITHUB_OUTPUT
-            echo "Listing android directory structure:"
-            find android -type d -name "app" -o -name "build" 2>/dev/null | head -20
-            ls -la android/app/ 2>/dev/null || true
+            echo "Listing build output directories:"
+            find android/app/build/outputs -type d 2>/dev/null || echo "No outputs directory found"
+            ls -la android/app/build/ 2>/dev/null || echo "No build directory found"
           fi
 
       - name: Upload APK artifact
