@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { getPersonnelVapidPublicKey, subscribePersonnelToPush, unsubscribePersonnelFromPush } from '../../api/api';
+import { isAppInstalled } from '../../utils/pushNotifications';
 
 const PersonnelPushNotification = () => {
   const [isSupported, setIsSupported] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const hasAutoSubscribed = useRef(false);
 
   useEffect(() => {
     checkSupportAndSubscription();
@@ -63,12 +65,101 @@ const PersonnelPushNotification = () => {
 
       // Check subscription status
       const subscription = await registration.pushManager.getSubscription();
-      setIsSubscribed(!!subscription);
+      const alreadySubscribed = !!subscription;
+      setIsSubscribed(alreadySubscribed);
+      
+      // If app is installed and not subscribed, try to auto-subscribe
+      if (!alreadySubscribed && isAppInstalled() && !hasAutoSubscribed.current) {
+        hasAutoSubscribed.current = true;
+        console.log('App is installed, attempting auto-subscribe...');
+        // Auto-subscribe in the background (don't wait for it)
+        autoSubscribe().catch(err => {
+          console.log('Auto-subscribe failed (this is OK if permission not granted):', err);
+        });
+      }
     } catch (error) {
       console.error('Error checking subscription:', error);
       setIsSubscribed(false);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Auto-subscribe function (called when app is installed)
+  const autoSubscribe = async () => {
+    try {
+      // Get VAPID public key
+      const response = await getPersonnelVapidPublicKey();
+      if (!response.data || !response.data.publicKey) {
+        return;
+      }
+
+      const vapidPublicKey = response.data.publicKey;
+
+      // Register service worker
+      let registration;
+      const existingRegistrations = await navigator.serviceWorker.getRegistrations();
+      if (existingRegistrations.length > 0) {
+        registration = existingRegistrations[0];
+      } else {
+        registration = await navigator.serviceWorker.register('/service-worker.js', {
+          scope: '/'
+        });
+      }
+      
+      await Promise.race([
+        registration.ready,
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Service worker timeout')), 10000)
+        )
+      ]);
+
+      // Convert VAPID key
+      const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
+
+      // Subscribe to push notifications
+      let subscription;
+      const existingSubscription = await registration.pushManager.getSubscription();
+      if (existingSubscription) {
+        subscription = existingSubscription;
+      } else {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: applicationServerKey
+        });
+      }
+
+      // Send subscription to server
+      const p256dhKey = subscription.getKey('p256dh');
+      const authKey = subscription.getKey('auth');
+      
+      const p256dhBase64 = btoa(String.fromCharCode(...new Uint8Array(p256dhKey)))
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=/g, '');
+      
+      const authBase64 = btoa(String.fromCharCode(...new Uint8Array(authKey)))
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=/g, '');
+      
+      const subscriptionData = {
+        endpoint: subscription.endpoint,
+        keys: {
+          p256dh: p256dhBase64,
+          auth: authBase64
+        }
+      };
+      
+      const serverResponse = await subscribePersonnelToPush(subscriptionData);
+      
+      if (serverResponse.data && serverResponse.data.success) {
+        setIsSubscribed(true);
+        console.log('✅ Auto-subscribed to push notifications');
+      }
+    } catch (error) {
+      // Silently fail - user can manually subscribe if needed
+      console.log('Auto-subscribe failed (this is OK):', error);
     }
   };
 
