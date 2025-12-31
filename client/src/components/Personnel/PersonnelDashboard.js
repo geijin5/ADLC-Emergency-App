@@ -186,12 +186,17 @@ const PersonnelDashboard = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, showChatModal]);
 
-  // Reset counts when modals are opened
+  // Reset chat count when modal is opened and update last seen message ID
   useEffect(() => {
     if (showChatModal) {
       setNewChatCount(0);
+      // Update last seen message ID to current max when opening chat
+      if (chatMessages.length > 0) {
+        const maxId = Math.max(...chatMessages.map(msg => msg.id));
+        setLastChatMessageId(maxId);
+      }
     }
-  }, [showChatModal]);
+  }, [showChatModal, chatMessages]);
 
   // Initialize last IDs after first data fetch
   useEffect(() => {
@@ -1570,7 +1575,7 @@ const PersonnelDashboard = () => {
                   setNewChatCount(0);
                 }} 
                 className="btn btn-success"
-                style={{ backgroundColor: '#8b5cf6', position: 'relative' }}
+                style={{ backgroundColor: '#8b5cf6', position: 'relative', paddingRight: newChatCount > 0 ? '35px' : '16px' }}
               >
                 💬 Department Chat
                 {newChatCount > 0 && (
@@ -1581,15 +1586,18 @@ const PersonnelDashboard = () => {
                     backgroundColor: '#ef4444',
                     color: 'white',
                     borderRadius: '50%',
-                    width: '24px',
+                    minWidth: '24px',
                     height: '24px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontSize: '12px',
-                    fontWeight: 'bold'
+                    fontWeight: 'bold',
+                    padding: newChatCount > 9 ? '0 6px' : '0',
+                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.3)',
+                    border: '2px solid #1f2937'
                   }}>
-                    {newChatCount > 9 ? '9+' : newChatCount}
+                    {newChatCount > 99 ? '99+' : newChatCount > 9 ? '9+' : newChatCount}
                   </span>
                 )}
               </button>
