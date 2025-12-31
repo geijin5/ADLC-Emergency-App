@@ -31,6 +31,7 @@ jobs:
           cd client
           CI=false npm run build
           cd ..
+          echo "✅ React app built successfully"
 
       - name: Setup Java JDK
         uses: actions/setup-java@v4
@@ -44,11 +45,36 @@ jobs:
       - name: Install Bubblewrap CLI
         run: npm install -g @bubblewrap/cli
 
-      - name: Create TWA manifest
-        working-directory: client
+      - name: Prepare app URL
+        id: app_url
         run: |
-          APP_URL="${{ secrets.APP_URL || 'https://your-app.onrender.com' }}"
-          cat > twa-manifest.json << EOF
+          APP_URL="${{ secrets.APP_URL }}"
+          if [ -z "$APP_URL" ]; then
+            # Try to construct from repository or use default
+            APP_URL="https://adlc-emergency-app.onrender.com"
+          fi
+          echo "Using app URL: $APP_URL"
+          echo "app_url=$APP_URL" >> $GITHUB_OUTPUT
+
+      - name: Initialize TWA project
+        working-directory: client
+        continue-on-error: true
+        run: |
+          APP_URL="${{ steps.app_url.outputs.app_url }}"
+          echo "Initializing TWA with URL: $APP_URL"
+          
+          # Create TWA directory if it doesn't exist
+          mkdir -p twa
+          
+          # Initialize using bubblewrap (non-interactive)
+          echo "n" | bubblewrap init \
+            --manifest="$APP_URL/manifest.json" \
+            --directory=twa \
+            --package-id=com.adlc.emergency || {
+            echo "Bubblewrap init failed, creating manual config..."
+            
+            # Create manual TWA manifest
+            cat > twa/twa-manifest.json << EOF
           {
             "packageId": "com.adlc.emergency",
             "host": "$(echo $APP_URL | sed 's|https\?://||' | sed 's|/.*||')",
@@ -67,7 +93,7 @@ jobs:
             "generatorApp": "bubblewrap-cli",
             "webManifestUrl": "$APP_URL/manifest.json",
             "appVersionName": "${{ github.ref_name || '1.0.0' }}",
-            "appVersionCode": "${{ github.run_number }}",
+            "appVersionCode": ${{ github.run_number }},
             "minSdkVersion": 19,
             "orientation": "default",
             "fingerprints": [],
@@ -76,68 +102,66 @@ jobs:
             "appVersion": "1.0.0"
           }
           EOF
-
-      - name: Initialize TWA project
-        working-directory: client
-        continue-on-error: true
-        run: |
-          APP_URL="${{ secrets.APP_URL || 'https://your-app.onrender.com' }}"
-          if [ ! -d "twa" ]; then
-            bubblewrap init \
-              --manifest="$APP_URL/manifest.json" \
-              --directory=twa \
-              --package-id=com.adlc.emergency \
-              --name="ADLC Emergency Services" || true
-          fi
-
-      - name: Update TWA manifest with custom config
-        working-directory: client
-        run: |
-          if [ -f "twa-manifest.json" ] && [ -d "twa" ]; then
-            cp twa-manifest.json twa/twa-manifest.json
-          fi
+          }
 
       - name: Build APK with Bubblewrap
         working-directory: client
+        continue-on-error: true
         run: |
           if [ -d "twa" ]; then
             cd twa
+            echo "Building APK in twa directory..."
             bubblewrap build --skipSigning || bubblewrap build
+            cd ..
           else
             echo "TWA directory not found, trying direct build..."
             bubblewrap build --skipSigning --skipPwaValidation || true
           fi
 
-      - name: Find and copy APK
+      - name: Find APK files
+        id: find_apk
         working-directory: client
         run: |
-          APK_PATH=$(find . -name "*.apk" -type f | head -n 1)
-          if [ -z "$APK_PATH" ]; then
-            echo "APK not found, listing files:"
-            find . -name "*.apk" -o -type d -name "twa" | head -20
-            exit 1
+          echo "Searching for APK files..."
+          find . -name "*.apk" -type f 2>/dev/null | head -20
+          
+          APK_PATH=$(find . -name "*.apk" -type f 2>/dev/null | head -n 1)
+          if [ -n "$APK_PATH" ]; then
+            echo "✅ APK found at: $APK_PATH"
+            echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+            echo "apk_found=true" >> $GITHUB_OUTPUT
+            ls -lh "$APK_PATH"
+          else
+            echo "❌ APK not found"
+            echo "apk_found=false" >> $GITHUB_OUTPUT
+            echo "Listing build directories:"
+            ls -la twa/ 2>/dev/null || echo "No twa directory"
+            find . -type d -name "app" -o -name "build" 2>/dev/null | head -10
           fi
-          echo "APK found at: $APK_PATH"
-          cp "$APK_PATH" app-release.apk || cp "$APK_PATH" ../app-release.apk
-          ls -lh app-release.apk ../app-release.apk 2>/dev/null || true
 
       - name: Upload APK artifact
+        if: steps.find_apk.outputs.apk_found == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: adlc-emergency-apk
-          path: |
-            client/**/*.apk
-            client/app-release.apk
-            app-release.apk
+          path: ${{ steps.find_apk.outputs.apk_path }}
           retention-days: 90
 
+      - name: Build status
+        if: steps.find_apk.outputs.apk_found != 'true'
+        run: |
+          echo "⚠️ APK build failed or APK not found"
+          echo "This might be because:"
+          echo "1. The app needs to be deployed first (so manifest.json is accessible)"
+          echo "2. Bubblewrap needs the APP_URL secret set to your deployed URL"
+          echo "3. Check the build logs above for errors"
+          exit 1
+
       - name: Create GitHub Release
-        if: github.event_name == 'release'
+        if: github.event_name == 'release' && steps.find_apk.outputs.apk_found == 'true'
         uses: softprops/action-gh-release@v1
         with:
-          files: |
-            client/**/*.apk
-            client/app-release.apk
+          files: ${{ steps.find_apk.outputs.apk_path }}
           draft: false
           prerelease: false
         env:
@@ -148,10 +172,14 @@ jobs:
   deploy-notification:
     runs-on: ubuntu-latest
     needs: build-apk
-    if: success()
+    if: always()
     steps:
-      - name: Deployment Complete
+      - name: Deployment Status
         run: |
-          echo "✅ APK build complete! Render deployment will happen automatically on push."
-          echo "📱 APK is available in the workflow artifacts."
-
+          if [ "${{ needs.build-apk.result }}" == "success" ]; then
+            echo "✅ APK build successful! Render deployment will happen automatically on push."
+            echo "📱 APK is available in the workflow artifacts."
+          else
+            echo "⚠️ APK build had issues. Render deployment will still happen automatically."
+            echo "Check the build-apk job logs for details."
+          fi
