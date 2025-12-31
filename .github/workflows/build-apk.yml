@@ -109,6 +109,35 @@ jobs:
             echo "⚠️ Assets directory not found, but continuing..."
           fi
 
+      - name: Generate Android app icons from logo
+        working-directory: client
+        run: |
+          echo "Generating Android app icons from logo.png..."
+          if [ ! -f "public/logo.png" ]; then
+            echo "❌ logo.png not found in public directory"
+            exit 1
+          fi
+          
+          # Create res directory structure if it doesn't exist
+          mkdir -p android/app/src/main/res
+          
+          # Icon directories for different densities
+          ICON_DIRS="mipmap-mdpi mipmap-hdpi mipmap-xhdpi mipmap-xxhdpi mipmap-xxxhdpi"
+          
+          for dir in $ICON_DIRS; do
+            ICON_PATH="android/app/src/main/res/$dir"
+            mkdir -p "$ICON_PATH"
+            
+            # Copy logo as launcher icons
+            if [ -f "public/logo.png" ]; then
+              cp public/logo.png "$ICON_PATH/ic_launcher.png"
+              cp public/logo.png "$ICON_PATH/ic_launcher_round.png"
+              echo "✅ Created icons in $dir"
+            fi
+          done
+          
+          echo "✅ Android app icons generated successfully"
+
       - name: Update Android build configuration
         working-directory: client
         run: |

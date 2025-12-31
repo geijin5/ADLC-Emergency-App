@@ -48,6 +48,9 @@ body {
     padding-top: calc(10px + env(safe-area-inset-top));
     padding-bottom: 10px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
   }
 
   .navbar-content {
@@ -55,12 +58,18 @@ body {
     gap: 10px;
     padding: 10px 15px;
     align-items: center;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .navbar-brand {
     font-size: 16px;
     flex: 1;
     min-width: 0; /* Allow text truncation */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .navbar-brand span {
@@ -70,12 +79,14 @@ body {
   .navbar-brand img {
     height: 36px;
     width: 36px;
+    flex-shrink: 0;
   }
 
   .navbar-links {
     display: flex;
     gap: 8px;
     align-items: center;
+    flex-shrink: 0;
   }
 
   .navbar-links a {
@@ -84,9 +95,11 @@ body {
     border-radius: 6px;
     white-space: nowrap;
     min-height: 44px;
+    min-width: 44px;
     display: flex;
     align-items: center;
     justify-content: center;
+    touch-action: manipulation;
   }
 
   /* Hide "Home" link on mobile, keep only essential links */
@@ -191,14 +204,28 @@ body {
 
   /* Container padding with safe areas */
   .container {
-    padding: 20px 15px;
-    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+    padding: 16px 15px;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
     max-width: 100%;
+    width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
   }
 
   /* App-like page padding */
   .App {
     padding-bottom: env(safe-area-inset-bottom);
+    min-height: 100vh;
+    min-height: -webkit-fill-available; /* iOS Safari fix */
+    width: 100%;
+    overflow-x: hidden;
+  }
+  
+  /* Prevent horizontal scroll */
+  html, body {
+    overflow-x: hidden;
+    width: 100%;
+    position: relative;
   }
 
   /* Modal adjustments - Bottom sheet style for mobile */
@@ -364,20 +391,56 @@ body {
   input[type="password"],
   input[type="datetime-local"],
   input[type="number"],
-  textarea {
+  input[type="tel"],
+  input[type="url"],
+  input[type="search"],
+  textarea,
+  select {
     width: 100%;
     padding: 14px 16px;
     font-size: 16px; /* Prevents zoom on iOS */
     border-radius: 8px;
     min-height: 48px;
     box-sizing: border-box;
+    -webkit-appearance: none; /* Remove iOS styling */
+    appearance: none;
+    touch-action: manipulation;
+  }
+  
+  /* Select dropdown styling for mobile */
+  select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23f9fafb' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 16px center;
+    padding-right: 40px;
   }
 
   /* Better table mobile experience */
   .table-container {
     border-radius: 12px;
-    overflow: hidden;
-    margin: 16px 0;
+    overflow-x: auto;
+    overflow-y: visible;
+    margin: 16px -15px;
+    padding: 0 15px;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .table-container::-webkit-scrollbar {
+    height: 8px;
+  }
+  
+  .table-container::-webkit-scrollbar-track {
+    background: #1f2937;
+    border-radius: 4px;
+  }
+  
+  .table-container::-webkit-scrollbar-thumb {
+    background: #4b5563;
+    border-radius: 4px;
+  }
+  
+  .table-container::-webkit-scrollbar-thumb:hover {
+    background: #6b7280;
   }
 
   /* Scrollable content */
@@ -390,6 +453,51 @@ body {
   .status-bar-spacer {
     height: env(safe-area-inset-top);
     background: transparent;
+  }
+  
+  /* Better text readability on mobile */
+  p, li, td, th {
+    line-height: 1.6;
+    font-size: 15px;
+  }
+  
+  /* Improved spacing for sections */
+  .info-section,
+  section {
+    margin: 20px 0;
+    padding: 0 4px;
+  }
+  
+  /* Better card spacing on mobile */
+  .card + .card {
+    margin-top: 16px;
+  }
+  
+  /* Stack button groups vertically on mobile */
+  .btn-group {
+    flex-direction: column;
+    width: 100%;
+    gap: 12px !important;
+  }
+  
+  .btn-group .btn {
+    width: 100%;
+    margin: 0 !important;
+  }
+  
+  /* Improved grid spacing */
+  .grid > * {
+    margin-bottom: 16px;
+  }
+  
+  /* Better list styling */
+  ul, ol {
+    padding-left: 24px;
+    margin: 16px 0;
+  }
+  
+  li {
+    margin-bottom: 8px;
   }
 }
 
