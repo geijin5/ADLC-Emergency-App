@@ -35,7 +35,7 @@ function MapUpdater({ center, zoom }) {
   return null;
 }
 
-const MapView = ({ refreshTrigger }) => {
+const MapView = ({ refreshTrigger, onSectionClick }) => {
   const [closedAreas, setClosedAreas] = useState([]);
   const [paradeRoutes, setParadeRoutes] = useState([]);
   const [detours, setDetours] = useState([]);
@@ -296,21 +296,68 @@ const MapView = ({ refreshTrigger }) => {
             borderRadius: '8px',
             border: '1px solid #374151'
           }}>
-            <p style={{ margin: 0, color: '#d1d5db' }}>
-              <strong style={{ color: '#f9fafb' }}>🔴 Closed Areas:</strong> {closedAreas.length} active
-            </p>
-            <p style={{ margin: 0, color: '#d1d5db' }}>
-              <strong style={{ color: '#f9fafb' }}>🔵 Parade Routes:</strong> {paradeRoutes.length} active
-            </p>
-            <p style={{ margin: 0, color: '#d1d5db' }}>
-              <strong style={{ color: '#f9fafb' }}>🟠 Detours:</strong> {detours.length} active
-            </p>
-            <p style={{ margin: 0, color: '#d1d5db' }}>
-              <strong style={{ color: '#f9fafb' }}>🚫 Closed Roads:</strong> {closedRoads.length} active
-            </p>
-            <p style={{ margin: '5px 0', fontSize: '14px', color: '#d1d5db' }}>
-              <strong style={{ color: '#f9fafb' }}>🔍 Search & Rescue:</strong> {searchRescueOps.length} active
-            </p>
+            {onSectionClick ? (
+              <>
+                <p 
+                  style={{ margin: 0, color: '#d1d5db', cursor: 'pointer' }}
+                  onClick={() => onSectionClick('closed-areas-section')}
+                  onMouseEnter={(e) => e.currentTarget.style.color = '#3b82f6'}
+                  onMouseLeave={(e) => e.currentTarget.style.color = '#d1d5db'}
+                >
+                  <strong style={{ color: '#f9fafb' }}>🔴 Closed Areas:</strong> {closedAreas.length} active
+                </p>
+                <p 
+                  style={{ margin: 0, color: '#d1d5db', cursor: 'pointer' }}
+                  onClick={() => onSectionClick('parade-routes-section')}
+                  onMouseEnter={(e) => e.currentTarget.style.color = '#3b82f6'}
+                  onMouseLeave={(e) => e.currentTarget.style.color = '#d1d5db'}
+                >
+                  <strong style={{ color: '#f9fafb' }}>🔵 Parade Routes:</strong> {paradeRoutes.length} active
+                </p>
+                <p 
+                  style={{ margin: 0, color: '#d1d5db', cursor: 'pointer' }}
+                  onClick={() => onSectionClick('detours-section')}
+                  onMouseEnter={(e) => e.currentTarget.style.color = '#3b82f6'}
+                  onMouseLeave={(e) => e.currentTarget.style.color = '#d1d5db'}
+                >
+                  <strong style={{ color: '#f9fafb' }}>🟠 Detours:</strong> {detours.length} active
+                </p>
+                <p 
+                  style={{ margin: 0, color: '#d1d5db', cursor: 'pointer' }}
+                  onClick={() => onSectionClick('closed-roads-section')}
+                  onMouseEnter={(e) => e.currentTarget.style.color = '#3b82f6'}
+                  onMouseLeave={(e) => e.currentTarget.style.color = '#d1d5db'}
+                >
+                  <strong style={{ color: '#f9fafb' }}>🚫 Closed Roads:</strong> {closedRoads.length} active
+                </p>
+                <p 
+                  style={{ margin: '5px 0', fontSize: '14px', color: '#d1d5db', cursor: 'pointer' }}
+                  onClick={() => onSectionClick('search-rescue-section')}
+                  onMouseEnter={(e) => e.currentTarget.style.color = '#3b82f6'}
+                  onMouseLeave={(e) => e.currentTarget.style.color = '#d1d5db'}
+                >
+                  <strong style={{ color: '#f9fafb' }}>🔍 Search & Rescue:</strong> {searchRescueOps.length} active
+                </p>
+              </>
+            ) : (
+              <>
+                <p style={{ margin: 0, color: '#d1d5db' }}>
+                  <strong style={{ color: '#f9fafb' }}>🔴 Closed Areas:</strong> {closedAreas.length} active
+                </p>
+                <p style={{ margin: 0, color: '#d1d5db' }}>
+                  <strong style={{ color: '#f9fafb' }}>🔵 Parade Routes:</strong> {paradeRoutes.length} active
+                </p>
+                <p style={{ margin: 0, color: '#d1d5db' }}>
+                  <strong style={{ color: '#f9fafb' }}>🟠 Detours:</strong> {detours.length} active
+                </p>
+                <p style={{ margin: 0, color: '#d1d5db' }}>
+                  <strong style={{ color: '#f9fafb' }}>🚫 Closed Roads:</strong> {closedRoads.length} active
+                </p>
+                <p style={{ margin: '5px 0', fontSize: '14px', color: '#d1d5db' }}>
+                  <strong style={{ color: '#f9fafb' }}>🔍 Search & Rescue:</strong> {searchRescueOps.length} active
+                </p>
+              </>
+            )}
           </div>
           <div className="map-wrapper">
             <MapContainer

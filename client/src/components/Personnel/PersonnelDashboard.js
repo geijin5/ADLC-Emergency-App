@@ -1666,10 +1666,18 @@ const PersonnelDashboard = () => {
 
             {/* Map View - Shows Parade Routes, Detours, and Closed Areas */}
             <div className="card" style={{ marginTop: '30px' }}>
-              <MapView refreshTrigger={mapRefreshTrigger} />
+              <MapView 
+                refreshTrigger={mapRefreshTrigger}
+                onSectionClick={(sectionId) => {
+                  const element = document.getElementById(sectionId);
+                  if (element) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }
+                }}
+              />
             </div>
 
-            <div className="card" style={{ marginTop: '30px' }}>
+            <div id="closed-areas-section" className="card" style={{ marginTop: '30px', scrollMarginTop: '80px' }}>
               <h2 style={{ marginBottom: '20px' }}>Closed Areas Management</h2>
               {closedAreas.length === 0 ? (
                 <p style={{ textAlign: 'center', color: '#6b7280' }}>No closed areas defined.</p>
@@ -1754,7 +1762,7 @@ const PersonnelDashboard = () => {
             </div>
 
             {/* Parade Routes Management */}
-            <div className="card" style={{ marginTop: '30px' }}>
+            <div id="parade-routes-section" className="card" style={{ marginTop: '30px', scrollMarginTop: '80px' }}>
               <h2 style={{ marginBottom: '20px' }}>Parade Routes Management</h2>
               {paradeRoutes.length === 0 ? (
                 <p style={{ textAlign: 'center', color: '#6b7280' }}>No parade routes defined.</p>
@@ -1828,7 +1836,7 @@ const PersonnelDashboard = () => {
             </div>
 
             {/* Detours Management */}
-            <div className="card" style={{ marginTop: '30px' }}>
+            <div id="detours-section" className="card" style={{ marginTop: '30px', scrollMarginTop: '80px' }}>
               <h2 style={{ marginBottom: '20px' }}>Detours Management</h2>
               {detours.length === 0 ? (
                 <p style={{ textAlign: 'center', color: '#6b7280' }}>No detours defined.</p>
@@ -1902,7 +1910,7 @@ const PersonnelDashboard = () => {
             </div>
 
             {/* Closed Roads Management */}
-            <div className="card" style={{ marginTop: '30px' }}>
+            <div id="closed-roads-section" className="card" style={{ marginTop: '30px', scrollMarginTop: '80px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h2 style={{ margin: 0 }}>Closed Roads Management</h2>
                 {closedRoads.length > 0 && (
