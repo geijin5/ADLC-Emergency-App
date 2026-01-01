@@ -129,7 +129,9 @@ const PersonnelDashboard = () => {
     contact_name: '',
     contact_phone: '',
     assigned_team: '',
-    search_area_coordinates: ''
+    search_area_coordinates: '',
+    search_area_type: 'pin', // 'pin', 'radius', or 'polygon'
+    search_area_radius: ''
   });
   const [geocoding, setGeocoding] = useState(false);
   const [sarGeocoding, setSarGeocoding] = useState(false);
@@ -634,13 +636,14 @@ const PersonnelDashboard = () => {
       }
 
       // Convert empty strings to null for optional fields
-      // Convert empty strings to null for optional fields
       const sarData = {
         ...sarForm,
         crossroads: sarForm.crossroads && sarForm.crossroads.trim() !== '' ? sarForm.crossroads.trim() : null,
         latitude: sarForm.latitude && sarForm.latitude.trim() !== '' ? sarForm.latitude : null,
         longitude: sarForm.longitude && sarForm.longitude.trim() !== '' ? sarForm.longitude : null,
-        search_area_coordinates: sarForm.search_area_coordinates && sarForm.search_area_coordinates.trim() !== '' ? JSON.parse(sarForm.search_area_coordinates) : null,
+        search_area_coordinates: sarForm.search_area_type === 'polygon' && sarForm.search_area_coordinates && sarForm.search_area_coordinates.trim() !== '' ? JSON.parse(sarForm.search_area_coordinates) : null,
+        search_area_type: sarForm.search_area_type || null,
+        search_area_radius: sarForm.search_area_type === 'radius' && sarForm.search_area_radius && sarForm.search_area_radius.trim() !== '' ? parseFloat(sarForm.search_area_radius) : null,
         last_seen_time: sarForm.last_seen_time && sarForm.last_seen_time.trim() !== '' ? sarForm.last_seen_time : null
       };
 
@@ -672,7 +675,9 @@ const PersonnelDashboard = () => {
         contact_name: '',
         contact_phone: '',
         assigned_team: '',
-        search_area_coordinates: ''
+        search_area_coordinates: '',
+        search_area_type: 'pin',
+        search_area_radius: ''
       });
       fetchData();
       setMapRefreshTrigger(prev => prev + 1);
@@ -703,7 +708,9 @@ const PersonnelDashboard = () => {
       contact_name: operation.contact_name || '',
       contact_phone: operation.contact_phone || '',
       assigned_team: operation.assigned_team || '',
-      search_area_coordinates: operation.search_area_coordinates ? JSON.stringify(operation.search_area_coordinates) : ''
+      search_area_coordinates: operation.search_area_coordinates ? JSON.stringify(operation.search_area_coordinates) : '',
+      search_area_type: operation.search_area_type || (operation.search_area_coordinates ? 'polygon' : (operation.search_area_radius ? 'radius' : 'pin')),
+      search_area_radius: operation.search_area_radius || ''
     });
     setShowSARModal(true);
   };
@@ -3858,18 +3865,62 @@ const PersonnelDashboard = () => {
                   placeholder="e.g., SAR Team Alpha, Mountain Rescue Unit"
                 />
               </div>
-              <div className="form-group">
-                <label>Search Area Coordinates (JSON Array, Optional)</label>
-                <textarea
-                  className="input"
-                  value={sarForm.search_area_coordinates}
-                  onChange={(e) => setSarForm({ ...sarForm, search_area_coordinates: e.target.value })}
-                  placeholder='[[46.1, -112.9], [46.2, -112.8], [46.1, -112.8], [46.1, -112.9]]'
-                  rows="3"
-                />
-                <small style={{ color: '#d1d5db', marginTop: '5px', display: 'block' }}>
-                  Array of [latitude, longitude] pairs defining the search area polygon
-                </small>
+              <div style={{ borderTop: '1px solid #374151', paddingTop: '20px', marginTop: '20px' }}>
+                <h3 style={{ color: '#f9fafb', marginBottom: '15px' }}>Search Area Configuration</h3>
+                <div className="form-group">
+                  <label>Search Area Type *</label>
+                  <select
+                    className="select"
+                    value={sarForm.search_area_type}
+                    onChange={(e) => setSarForm({ ...sarForm, search_area_type: e.target.value })}
+                    required
+                  >
+                    <option value="pin">📍 Pin Drop (Single Point)</option>
+                    <option value="radius">⭕ Radius Boundary (Circle)</option>
+                    <option value="polygon">🗺️ Polygon (Custom Shape)</option>
+                  </select>
+                  <small style={{ color: '#d1d5db', marginTop: '5px', display: 'block' }}>
+                    {sarForm.search_area_type === 'pin' && 'Shows a single point marker on the map'}
+                    {sarForm.search_area_type === 'radius' && 'Shows a circular boundary around the location (requires latitude, longitude, and radius)'}
+                    {sarForm.search_area_type === 'polygon' && 'Shows a custom polygon shape on the map (requires search area coordinates)'}
+                  </small>
+                </div>
+
+                {sarForm.search_area_type === 'radius' && (
+                  <div className="form-group">
+                    <label>Search Area Radius (meters) *</label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="1"
+                      className="input"
+                      value={sarForm.search_area_radius}
+                      onChange={(e) => setSarForm({ ...sarForm, search_area_radius: e.target.value })}
+                      placeholder="500"
+                      required={sarForm.search_area_type === 'radius'}
+                    />
+                    <small style={{ color: '#d1d5db', marginTop: '5px', display: 'block' }}>
+                      Enter the radius in meters (e.g., 500 for 500 meters, 1609 for 1 mile)
+                    </small>
+                  </div>
+                )}
+
+                {sarForm.search_area_type === 'polygon' && (
+                  <div className="form-group">
+                    <label>Search Area Coordinates (JSON Array) *</label>
+                    <textarea
+                      className="input"
+                      value={sarForm.search_area_coordinates}
+                      onChange={(e) => setSarForm({ ...sarForm, search_area_coordinates: e.target.value })}
+                      placeholder='[[46.1, -112.9], [46.2, -112.8], [46.1, -112.8], [46.1, -112.9]]'
+                      rows="3"
+                      required={sarForm.search_area_type === 'polygon'}
+                    />
+                    <small style={{ color: '#d1d5db', marginTop: '5px', display: 'block' }}>
+                      Array of [latitude, longitude] pairs defining the search area polygon. First and last point should be the same to close the polygon.
+                    </small>
+                  </div>
+                )}
               </div>
               <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
                 <button 
@@ -3889,6 +3940,7 @@ const PersonnelDashboard = () => {
                       title: '',
                       description: '',
                       location: '',
+                      crossroads: '',
                       latitude: '',
                       longitude: '',
                       status: 'active',
@@ -3901,7 +3953,9 @@ const PersonnelDashboard = () => {
                       contact_name: '',
                       contact_phone: '',
                       assigned_team: '',
-                      search_area_coordinates: ''
+                      search_area_coordinates: '',
+                      search_area_type: 'pin',
+                      search_area_radius: ''
                     });
                   }}
                   className="btn btn-secondary" 

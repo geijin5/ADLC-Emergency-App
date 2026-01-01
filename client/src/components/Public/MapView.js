@@ -610,6 +610,7 @@ const MapView = ({ refreshTrigger, onSectionClick }) => {
                 
                 const markerColor = getMarkerColor();
                 const iconEmoji = op.status === 'training' ? '🎓' : '🔍';
+                const searchAreaType = op.search_area_type || (op.search_area_coordinates ? 'polygon' : (op.search_area_radius ? 'radius' : 'pin'));
                 
                 // Create a custom icon for SAR operations
                 const sarIcon = L.divIcon({
@@ -638,15 +639,98 @@ const MapView = ({ refreshTrigger, onSectionClick }) => {
                   popupAnchor: [0, -30]
                 });
 
+                const popupContent = (
+                  <div>
+                    <h3 style={{ margin: '0 0 10px 0', color: markerColor }}>
+                      {op.status === 'training' ? '🎓' : '🔍'} {op.case_number || `SAR-${op.id}`}: {op.title}
+                    </h3>
+                    {op.status === 'training' && (
+                      <p style={{ 
+                        margin: '0 0 10px 0', 
+                        padding: '5px 10px',
+                        backgroundColor: '#3b82f6',
+                        color: 'white',
+                        borderRadius: '4px',
+                        fontSize: '12px',
+                        fontWeight: 'bold',
+                        display: 'inline-block'
+                      }}>
+                        🎓 TRAINING OPERATION
+                      </p>
+                    )}
+                    <p style={{ margin: '5px 0', fontWeight: '600', color: '#f9fafb' }}>
+                      📍 {op.location}
+                    </p>
+                    {op.crossroads && (
+                      <p style={{ margin: '5px 0', fontSize: '12px', color: '#9ca3af' }}>
+                        🚦 {op.crossroads}
+                      </p>
+                    )}
+                    {op.description && <p style={{ margin: '5px 0', color: '#d1d5db' }}>{op.description}</p>}
+                    {op.missing_person_name && (
+                      <p style={{ margin: '5px 0', color: '#d1d5db' }}>
+                        <strong>Missing Person:</strong> {op.missing_person_name}
+                        {op.missing_person_age && ` (${op.missing_person_age})`}
+                      </p>
+                    )}
+                    {op.last_seen_location && (
+                      <p style={{ margin: '5px 0', fontSize: '12px', color: '#d1d5db' }}>
+                        <strong>Last Seen:</strong> {op.last_seen_location}
+                      </p>
+                    )}
+                    <p style={{ margin: '5px 0', fontSize: '12px', color: '#d1d5db' }}>
+                      <strong>Status:</strong> {op.status === 'training' ? '🎓 Training' : op.status || 'active'} | <strong>Priority:</strong> {op.priority || 'medium'}
+                    </p>
+                    {op.assigned_team && (
+                      <p style={{ margin: '5px 0', fontSize: '12px', color: '#d1d5db' }}>
+                        <strong>Team:</strong> {op.assigned_team}
+                      </p>
+                    )}
+                    {op.status !== 'training' && (
+                      <p style={{ margin: '10px 0 0 0', fontSize: '11px', color: '#9ca3af', fontStyle: 'italic' }}>
+                        If you have information, call 911
+                      </p>
+                    )}
+                  </div>
+                );
+
                 return (
                   <React.Fragment key={`sar-${op.id}`}>
-                    {/* SAR Operation Marker */}
+                    {/* SAR Operation Marker - always show if coordinates available */}
                     {op.latitude && op.longitude && (
                       <Marker position={[op.latitude, op.longitude]} icon={sarIcon} zIndexOffset={1000}>
                         <Popup maxWidth={300} autoPan={true} autoPanPadding={[50, 50]} closeButton={true}>
+                          {popupContent}
+                        </Popup>
+                      </Marker>
+                    )}
+                    {/* Search Area - Radius Boundary (Circle) */}
+                    {searchAreaType === 'radius' && op.latitude && op.longitude && op.search_area_radius && (
+                      <Circle
+                        center={[parseFloat(op.latitude), parseFloat(op.longitude)]}
+                        radius={parseFloat(op.search_area_radius)}
+                        pathOptions={{
+                          color: markerColor,
+                          fillColor: markerColor,
+                          fillOpacity: op.status === 'training' ? 0.15 : 0.2,
+                          weight: 3,
+                          dashArray: op.status === 'training' ? '5, 5' : '10, 5',
+                          interactive: true,
+                          bubblingMouseEvents: true
+                        }}
+                        eventHandlers={{
+                          mouseover: (e) => {
+                            e.target.setStyle({ fillOpacity: op.status === 'training' ? 0.25 : 0.3, weight: 4 });
+                          },
+                          mouseout: (e) => {
+                            e.target.setStyle({ fillOpacity: op.status === 'training' ? 0.15 : 0.2, weight: 3 });
+                          }
+                        }}
+                      >
+                        <Popup maxWidth={300} autoPan={true} autoPanPadding={[50, 50]} closeButton={true}>
                           <div>
                             <h3 style={{ margin: '0 0 10px 0', color: markerColor }}>
-                              {op.status === 'training' ? '🎓' : '🔍'} {op.case_number || `SAR-${op.id}`}: {op.title}
+                              {op.status === 'training' ? '🎓' : '🔍'} Search Area: {op.title}
                             </h3>
                             {op.status === 'training' && (
                               <p style={{ 
@@ -662,45 +746,18 @@ const MapView = ({ refreshTrigger, onSectionClick }) => {
                                 🎓 TRAINING OPERATION
                               </p>
                             )}
-                            <p style={{ margin: '5px 0', fontWeight: '600', color: '#f9fafb' }}>
-                              📍 {op.location}
+                            <p style={{ margin: '5px 0', color: '#d1d5db' }}>
+                              <strong>Radius:</strong> {parseFloat(op.search_area_radius).toLocaleString()} meters
                             </p>
-                            {op.crossroads && (
-                              <p style={{ margin: '5px 0', fontSize: '12px', color: '#9ca3af' }}>
-                                🚦 {op.crossroads}
-                              </p>
-                            )}
-                            {op.description && <p style={{ margin: '5px 0', color: '#d1d5db' }}>{op.description}</p>}
-                            {op.missing_person_name && (
-                              <p style={{ margin: '5px 0', color: '#d1d5db' }}>
-                                <strong>Missing Person:</strong> {op.missing_person_name}
-                                {op.missing_person_age && ` (${op.missing_person_age})`}
-                              </p>
-                            )}
-                            {op.last_seen_location && (
-                              <p style={{ margin: '5px 0', fontSize: '12px', color: '#d1d5db' }}>
-                                <strong>Last Seen:</strong> {op.last_seen_location}
-                              </p>
-                            )}
-                            <p style={{ margin: '5px 0', fontSize: '12px', color: '#d1d5db' }}>
-                              <strong>Status:</strong> {op.status === 'training' ? '🎓 Training' : op.status || 'active'} | <strong>Priority:</strong> {op.priority || 'medium'}
+                            <p style={{ margin: '5px 0', color: '#d1d5db' }}>
+                              {op.case_number || `SAR-${op.id}`}
                             </p>
-                            {op.assigned_team && (
-                              <p style={{ margin: '5px 0', fontSize: '12px', color: '#d1d5db' }}>
-                                <strong>Team:</strong> {op.assigned_team}
-                              </p>
-                            )}
-                            {op.status !== 'training' && (
-                              <p style={{ margin: '10px 0 0 0', fontSize: '11px', color: '#9ca3af', fontStyle: 'italic' }}>
-                                If you have information, call 911
-                              </p>
-                            )}
                           </div>
                         </Popup>
-                      </Marker>
+                      </Circle>
                     )}
-                    {/* Search Area Polygon */}
-                    {op.search_area_coordinates && Array.isArray(op.search_area_coordinates) && op.search_area_coordinates.length > 0 && (
+                    {/* Search Area - Polygon */}
+                    {searchAreaType === 'polygon' && op.search_area_coordinates && Array.isArray(op.search_area_coordinates) && op.search_area_coordinates.length > 0 && (
                       <Polygon
                         positions={op.search_area_coordinates}
                         pathOptions={{

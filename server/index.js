@@ -551,6 +551,24 @@ const isPostgres = dbType === 'postgres';
     }
   }
 
+  // Add search_area_type column if it doesn't exist
+  try {
+    await run(`ALTER TABLE search_rescue_operations ADD COLUMN search_area_type ${isPostgres ? 'VARCHAR(50)' : 'TEXT'}`);
+  } catch (err) {
+    if (!err.message.includes('duplicate column') && !err.message.includes('already exists')) {
+      console.error('Error adding search_area_type column to search_rescue_operations:', err.message);
+    }
+  }
+
+  // Add search_area_radius column if it doesn't exist
+  try {
+    await run(`ALTER TABLE search_rescue_operations ADD COLUMN search_area_radius ${isPostgres ? 'DOUBLE PRECISION' : 'REAL'}`);
+  } catch (err) {
+    if (!err.message.includes('duplicate column') && !err.message.includes('already exists')) {
+      console.error('Error adding search_area_radius column to search_rescue_operations:', err.message);
+    }
+  }
+
   // Create default admin user (password: admin123)
   // This runs after all tables are created
   setTimeout(async () => {
@@ -2308,21 +2326,24 @@ app.post('/api/personnel/search-rescue', authenticateToken, async (req, res) => 
   }
 
   try {
+    const searchAreaTypeValue = search_area_type || null;
+    const searchAreaRadiusValue = search_area_radius ? parseFloat(search_area_radius) : null;
+
     const result = await run(
       `INSERT INTO search_rescue_operations (
         case_number, title, description, location, crossroads, latitude, longitude, 
         status, priority, missing_person_name, missing_person_age, 
         missing_person_description, last_seen_location, last_seen_time,
         contact_name, contact_phone, assigned_team, search_area_coordinates,
-        created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        search_area_type, search_area_radius, created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         caseNum, title, description || '', location, req.body.crossroads || '', lat, lng,
         status || 'active', priority || 'medium',
         missing_person_name || '', missing_person_age || '',
         missing_person_description || '', last_seen_location || '', lastSeenTimeValue,
         contact_name || '', contact_phone || '', assigned_team || '', searchAreaJson,
-        req.user.id
+        searchAreaTypeValue, searchAreaRadiusValue, req.user.id
       ]
     );
     res.json({ 
@@ -2356,6 +2377,8 @@ app.put('/api/personnel/search-rescue/:id', authenticateToken, async (req, res) 
     contact_phone,
     assigned_team,
     search_area_coordinates,
+    search_area_type,
+    search_area_radius,
     is_active,
     resolved_at
   } = req.body;
@@ -2467,6 +2490,14 @@ app.put('/api/personnel/search-rescue/:id', authenticateToken, async (req, res) 
     } else {
       return res.status(400).json({ error: 'Search area coordinates must be an array or null' });
     }
+  }
+  if (search_area_type !== undefined) {
+    updates.push('search_area_type = ?');
+    values.push(search_area_type || null);
+  }
+  if (search_area_radius !== undefined) {
+    updates.push('search_area_radius = ?');
+    values.push(search_area_radius ? parseFloat(search_area_radius) : null);
   }
   if (is_active !== undefined) {
     updates.push('is_active = ?');
