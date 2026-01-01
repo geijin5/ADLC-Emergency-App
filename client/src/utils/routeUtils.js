@@ -45,12 +45,16 @@ export const getRoadFollowingRoute = async (coordinates) => {
       if (routeGeometry && routeGeometry.coordinates) {
         // Convert from [lng, lat] back to [lat, lng] format
         const routeCoordinates = routeGeometry.coordinates.map(coord => [coord[1], coord[0]]);
+        console.log(`✅ Road-following route generated: ${coordinates.length} waypoints → ${routeCoordinates.length} route points`);
         return routeCoordinates;
       }
     }
 
     // Fallback to original coordinates if routing fails
-    console.warn('OSRM routing returned no valid route, using original coordinates');
+    console.warn('⚠️ OSRM routing returned no valid route, using original coordinates');
+    if (data.code && data.code !== 'Ok') {
+      console.warn(`OSRM error code: ${data.code}`);
+    }
     return coordinates;
   } catch (error) {
     console.error('Error getting road-following route:', error);

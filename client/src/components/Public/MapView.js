@@ -78,6 +78,9 @@ const MapView = ({ refreshTrigger, onSectionClick }) => {
       // Only route items that don't already have many points (indicating they need routing)
       // If an item has 10+ points, it's likely already detailed and doesn't need routing
       const itemsToRoute = allItems.filter(item => item.coordinates.length < 10);
+      const itemsSkipped = allItems.filter(item => item.coordinates.length >= 10);
+
+      console.log(`🗺️ Road routing: ${itemsToRoute.length} routes to process, ${itemsSkipped.length} routes skipped (already detailed)`);
 
       if (itemsToRoute.length === 0) {
         setRoutedCoordinates({});
@@ -94,10 +97,12 @@ const MapView = ({ refreshTrigger, onSectionClick }) => {
           batch.map(async (item) => {
             const cacheKey = `${item.type}-${item.id}`;
             try {
+              console.log(`🛣️ Routing ${item.type} ${item.id} (${item.coordinates.length} waypoints)...`);
               const routedCoords = await getRoadFollowingRoute(item.coordinates);
               newRoutedCoordinates[cacheKey] = routedCoords;
+              console.log(`✅ ${item.type} ${item.id} routed successfully`);
             } catch (error) {
-              console.error(`Error routing ${item.type} ${item.id}:`, error);
+              console.error(`❌ Error routing ${item.type} ${item.id}:`, error);
               // Use original coordinates on error
               newRoutedCoordinates[cacheKey] = item.coordinates;
             }
