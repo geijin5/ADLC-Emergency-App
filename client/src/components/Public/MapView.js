@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { MapContainer, TileLayer, Circle, Popup, Marker, useMap, Polyline, Polygon } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { getClosedAreas, getParadeRoutes, getDetours, getClosedRoads, getPublicSearchRescue } from '../../api/api';
 import OffsetPolyline from './OffsetPolyline';
+import { getRoadFollowingRoute } from '../../utils/routeUtils';
 import './MapView.css';
 
 // Fix for default marker icons in React-Leaflet
@@ -48,6 +49,7 @@ const MapView = ({ refreshTrigger, onSectionClick }) => {
   const [mapCenter, setMapCenter] = useState(DEFAULT_CENTER);
   const [mapZoom, setMapZoom] = useState(DEFAULT_ZOOM);
   const [mapType, setMapType] = useState('standard'); // 'standard' or 'satellite'
+  const [routedCoordinates, setRoutedCoordinates] = useState({}); // Cache for routed coordinates
 
   useEffect(() => {
     fetchMapData();
@@ -61,6 +63,66 @@ const MapView = ({ refreshTrigger, onSectionClick }) => {
       fetchMapData();
     }
   }, [refreshTrigger]);
+
+  // Fetch road-following routes for routes, detours, and closed roads
+  useEffect(() => {
+    const enhanceRoutesWithRoads = async () => {
+      const allItems = [
+        ...paradeRoutes.map(r => ({ ...r, type: 'route' })),
+        ...detours.map(d => ({ ...d, type: 'detour' })),
+        ...closedRoads.map(r => ({ ...r, type: 'road' }))
+      ].filter(item => item.coordinates && Array.isArray(item.coordinates) && item.coordinates.length >= 2);
+
+      // Only route items that don't already have many points (indicating they need routing)
+      // If an item has 10+ points, it's likely already detailed and doesn't need routing
+      const itemsToRoute = allItems.filter(item => item.coordinates.length < 10);
+
+      if (itemsToRoute.length === 0) {
+        setRoutedCoordinates({});
+        return;
+      }
+
+      // Process routes in batches to avoid rate limits
+      const batchSize = 3;
+      const newRoutedCoordinates = {};
+
+      for (let i = 0; i < itemsToRoute.length; i += batchSize) {
+        const batch = itemsToRoute.slice(i, i + batchSize);
+        await Promise.all(
+          batch.map(async (item) => {
+            const cacheKey = `${item.type}-${item.id}`;
+            try {
+              const routedCoords = await getRoadFollowingRoute(item.coordinates);
+              newRoutedCoordinates[cacheKey] = routedCoords;
+            } catch (error) {
+              console.error(`Error routing ${item.type} ${item.id}:`, error);
+              // Use original coordinates on error
+              newRoutedCoordinates[cacheKey] = item.coordinates;
+            }
+          })
+        );
+
+        // Small delay between batches to avoid rate limits
+        if (i + batchSize < itemsToRoute.length) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+
+      setRoutedCoordinates(newRoutedCoordinates);
+    };
+
+    if (paradeRoutes.length > 0 || detours.length > 0 || closedRoads.length > 0) {
+      enhanceRoutesWithRoads();
+    } else {
+      setRoutedCoordinates({});
+    }
+    // Dependency on route IDs to trigger re-routing when routes change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    JSON.stringify(paradeRoutes.map(r => r.id)),
+    JSON.stringify(detours.map(d => d.id)),
+    JSON.stringify(closedRoads.map(r => r.id))
+  ]);
 
   const fetchMapData = async () => {
     try {
@@ -402,7 +464,9 @@ const MapView = ({ refreshTrigger, onSectionClick }) => {
 
               {/* Parade Routes */}
               {paradeRoutes.filter(route => route.coordinates && Array.isArray(route.coordinates) && route.coordinates.length > 0).map((route, index) => {
-                const positions = route.coordinates.map(coord => 
+                // Use routed coordinates if available, otherwise use original
+                const coordinatesToUse = routedCoordinates[`route-${route.id}`] || route.coordinates;
+                const positions = coordinatesToUse.map(coord => 
                   Array.isArray(coord) && coord.length === 2 
                     ? [parseFloat(coord[0]), parseFloat(coord[1])]
                     : coord
@@ -443,7 +507,9 @@ const MapView = ({ refreshTrigger, onSectionClick }) => {
 
               {/* Detours */}
               {detours.filter(detour => detour.coordinates && Array.isArray(detour.coordinates) && detour.coordinates.length > 0).map((detour, index) => {
-                const positions = detour.coordinates.map(coord => 
+                // Use routed coordinates if available, otherwise use original
+                const coordinatesToUse = routedCoordinates[`detour-${detour.id}`] || detour.coordinates;
+                const positions = coordinatesToUse.map(coord => 
                   Array.isArray(coord) && coord.length === 2 
                     ? [parseFloat(coord[0]), parseFloat(coord[1])]
                     : coord
@@ -485,7 +551,9 @@ const MapView = ({ refreshTrigger, onSectionClick }) => {
 
               {/* Closed Roads */}
               {closedRoads.filter(road => road.coordinates && Array.isArray(road.coordinates) && road.coordinates.length > 0).map((road, index) => {
-                const positions = road.coordinates.map(coord => 
+                // Use routed coordinates if available, otherwise use original
+                const coordinatesToUse = routedCoordinates[`road-${road.id}`] || road.coordinates;
+                const positions = coordinatesToUse.map(coord => 
                   Array.isArray(coord) && coord.length === 2 
                     ? [parseFloat(coord[0]), parseFloat(coord[1])]
                     : coord
