@@ -13,34 +13,28 @@ const PushNotification = () => {
   }, []);
 
   const checkSupportAndSubscription = async () => {
-    // Check if we're in a Capacitor environment
-    const isCapacitor = typeof window !== 'undefined' && (
-      window.Capacitor || 
-      window.CapacitorWeb ||
-      (window.location && (
-        window.location.protocol === 'capacitor:' ||
-        window.location.protocol === 'file:' ||
-        (window.location.hostname === 'localhost' && window.location.port === '')
-      ))
-    );
-
-    // Check basic support
-    // In Capacitor apps, be more lenient - assume support and let the subscription attempt reveal issues
+    // Check basic support with detailed logging
     const hasServiceWorker = 'serviceWorker' in navigator;
     const hasPushManager = 'PushManager' in window;
     
-    if (!hasServiceWorker && !hasPushManager && !isCapacitor) {
-      console.log('Push notifications not supported: serviceWorker=', hasServiceWorker, 'PushManager=', hasPushManager);
+    console.log('Push notification support check:', {
+      hasServiceWorker,
+      hasPushManager,
+      userAgent: navigator.userAgent,
+      protocol: window.location?.protocol,
+      isCapacitor: !!(window.Capacitor || window.CapacitorWeb)
+    });
+    
+    if (!hasServiceWorker || !hasPushManager) {
+      console.warn('Push notifications not supported:', {
+        serviceWorker: hasServiceWorker,
+        pushManager: hasPushManager
+      });
       setIsSupported(false);
       setIsLoading(false);
       return;
     }
 
-    // If in Capacitor or if APIs are available, assume support
-    // (The actual subscription will reveal if it really doesn't work)
-    if (isCapacitor) {
-      console.log('Capacitor app detected - assuming push notification support');
-    }
     setIsSupported(true);
 
     try {
@@ -61,11 +55,26 @@ const PushNotification = () => {
       }
 
       // Check for existing service worker registration
-      let registration = await navigator.serviceWorker.getRegistration();
+      let registration;
+      try {
+        registration = await navigator.serviceWorker.getRegistration();
+        console.log('Service worker registration check:', {
+          found: !!registration,
+          scope: registration?.scope,
+          active: !!registration?.active,
+          installing: !!registration?.installing,
+          waiting: !!registration?.waiting
+        });
+      } catch (regError) {
+        console.error('Error checking service worker registration:', regError);
+        // Continue anyway - we'll try to register when user clicks
+        registration = null;
+      }
       
       if (!registration) {
         // No registration exists, but we can still show the button
         // Registration will happen when user clicks subscribe
+        console.log('No service worker registration found, will register on subscribe');
         setIsSubscribed(false);
         setIsLoading(false);
         return;
@@ -126,9 +135,27 @@ const PushNotification = () => {
       if (existingRegistrations.length > 0) {
         registration = existingRegistrations[0];
       } else {
-        registration = await navigator.serviceWorker.register('/service-worker.js', {
-          scope: '/'
-        });
+        // Try different paths for service worker (for Capacitor compatibility)
+        const swPaths = ['/service-worker.js', './service-worker.js', 'service-worker.js'];
+        let registered = false;
+        
+        for (const swPath of swPaths) {
+          try {
+            registration = await navigator.serviceWorker.register(swPath, {
+              scope: '/'
+            });
+            console.log('✅ Service Worker registered at:', swPath);
+            registered = true;
+            break;
+          } catch (pathError) {
+            console.warn(`Failed to register at ${swPath}:`, pathError.message);
+            // Continue to next path
+          }
+        }
+        
+        if (!registered) {
+          throw new Error('Failed to register service worker at any path');
+        }
       }
       
       await Promise.race([
@@ -263,10 +290,28 @@ const PushNotification = () => {
           registration = existingRegistrations[0];
         } else {
           console.log('Registering new service worker...');
-          registration = await navigator.serviceWorker.register('/service-worker.js', {
-            scope: '/'
-          });
-          console.log('Service Worker registered:', registration);
+          // Try different paths for service worker (for Capacitor compatibility)
+          const swPaths = ['/service-worker.js', './service-worker.js', 'service-worker.js'];
+          let lastError;
+          
+          for (const swPath of swPaths) {
+            try {
+              console.log(`Trying to register service worker at: ${swPath}`);
+              registration = await navigator.serviceWorker.register(swPath, {
+                scope: '/'
+              });
+              console.log('✅ Service Worker registered at:', swPath, registration);
+              break; // Success, exit loop
+            } catch (pathError) {
+              console.warn(`Failed to register at ${swPath}:`, pathError.message);
+              lastError = pathError;
+              // Continue to next path
+            }
+          }
+          
+          if (!registration) {
+            throw lastError || new Error('Failed to register service worker at any path');
+          }
         }
         
         // Wait for service worker to be ready with timeout
@@ -453,13 +498,27 @@ const PushNotification = () => {
   // Always show the notification card if supported, even if there are errors
   // This ensures users can see and interact with it in the app
   if (!isSupported) {
+    const isCapacitor = typeof window !== 'undefined' && (window.Capacitor || window.CapacitorWeb);
+    const hasServiceWorker = 'serviceWorker' in navigator;
+    const hasPushManager = 'PushManager' in window;
+    
+    // Provide more helpful error message
+    let errorMessage = 'Push notifications are not supported in this browser';
+    if (isCapacitor && (!hasServiceWorker || !hasPushManager)) {
+      errorMessage = 'Push notifications may not be available in this app version. Please update the app or use the web version.';
+    } else if (!hasServiceWorker) {
+      errorMessage = 'Service workers are not supported in this browser';
+    } else if (!hasPushManager) {
+      errorMessage = 'Push notifications API is not available in this browser';
+    }
+    
     return (
       <div className="card" style={{ marginTop: '20px', marginBottom: '20px', opacity: 0.6 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '15px' }}>
           <div>
             <h3 style={{ margin: '0 0 5px 0', color: '#f9fafb' }}>🔔 Push Notifications</h3>
             <p style={{ margin: 0, color: '#d1d5db', fontSize: '14px' }}>
-              Push notifications are not supported in this browser
+              {errorMessage}
             </p>
           </div>
         </div>

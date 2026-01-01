@@ -13,34 +13,28 @@ const PersonnelPushNotification = () => {
   }, []);
 
   const checkSupportAndSubscription = async () => {
-    // Check if we're in a Capacitor environment
-    const isCapacitor = typeof window !== 'undefined' && (
-      window.Capacitor || 
-      window.CapacitorWeb ||
-      (window.location && (
-        window.location.protocol === 'capacitor:' ||
-        window.location.protocol === 'file:' ||
-        (window.location.hostname === 'localhost' && window.location.port === '')
-      ))
-    );
-
-    // Check basic support
-    // In Capacitor apps, be more lenient - assume support and let the subscription attempt reveal issues
+    // Check basic support with detailed logging
     const hasServiceWorker = 'serviceWorker' in navigator;
     const hasPushManager = 'PushManager' in window;
     
-    if (!hasServiceWorker && !hasPushManager && !isCapacitor) {
-      console.log('Push notifications not supported: serviceWorker=', hasServiceWorker, 'PushManager=', hasPushManager);
+    console.log('Personnel push notification support check:', {
+      hasServiceWorker,
+      hasPushManager,
+      userAgent: navigator.userAgent,
+      protocol: window.location?.protocol,
+      isCapacitor: !!(window.Capacitor || window.CapacitorWeb)
+    });
+    
+    if (!hasServiceWorker || !hasPushManager) {
+      console.warn('Push notifications not supported:', {
+        serviceWorker: hasServiceWorker,
+        pushManager: hasPushManager
+      });
       setIsSupported(false);
       setIsLoading(false);
       return;
     }
 
-    // If in Capacitor or if APIs are available, assume support
-    // (The actual subscription will reveal if it really doesn't work)
-    if (isCapacitor) {
-      console.log('Capacitor app detected - assuming push notification support');
-    }
     setIsSupported(true);
 
     try {
@@ -62,9 +56,23 @@ const PersonnelPushNotification = () => {
       }
 
       // Check for existing service worker registration
-      let registration = await navigator.serviceWorker.getRegistration();
+      let registration;
+      try {
+        registration = await navigator.serviceWorker.getRegistration();
+        console.log('Service worker registration check:', {
+          found: !!registration,
+          scope: registration?.scope,
+          active: !!registration?.active,
+          installing: !!registration?.installing,
+          waiting: !!registration?.waiting
+        });
+      } catch (regError) {
+        console.error('Error checking service worker registration:', regError);
+        registration = null;
+      }
       
       if (!registration) {
+        console.log('No service worker registration found, will register on subscribe');
         setIsSubscribed(false);
         setIsLoading(false);
         return;
@@ -124,9 +132,27 @@ const PersonnelPushNotification = () => {
       if (existingRegistrations.length > 0) {
         registration = existingRegistrations[0];
       } else {
-        registration = await navigator.serviceWorker.register('/service-worker.js', {
-          scope: '/'
-        });
+        // Try different paths for service worker (for Capacitor compatibility)
+        const swPaths = ['/service-worker.js', './service-worker.js', 'service-worker.js'];
+        let registered = false;
+        
+        for (const swPath of swPaths) {
+          try {
+            registration = await navigator.serviceWorker.register(swPath, {
+              scope: '/'
+            });
+            console.log('✅ Service Worker registered at:', swPath);
+            registered = true;
+            break;
+          } catch (pathError) {
+            console.warn(`Failed to register at ${swPath}:`, pathError.message);
+            // Continue to next path
+          }
+        }
+        
+        if (!registered) {
+          throw new Error('Failed to register service worker at any path');
+        }
       }
       
       await Promise.race([
@@ -245,9 +271,28 @@ const PersonnelPushNotification = () => {
         if (existingRegistrations.length > 0) {
           registration = existingRegistrations[0];
         } else {
-          registration = await navigator.serviceWorker.register('/service-worker.js', {
-            scope: '/'
-          });
+          // Try different paths for service worker (for Capacitor compatibility)
+          const swPaths = ['/service-worker.js', './service-worker.js', 'service-worker.js'];
+          let registered = false;
+          
+          for (const swPath of swPaths) {
+            try {
+              console.log(`Trying to register service worker at: ${swPath}`);
+              registration = await navigator.serviceWorker.register(swPath, {
+                scope: '/'
+              });
+              console.log('✅ Service Worker registered at:', swPath, registration);
+              registered = true;
+              break; // Success, exit loop
+            } catch (pathError) {
+              console.warn(`Failed to register at ${swPath}:`, pathError.message);
+              // Continue to next path
+            }
+          }
+          
+          if (!registered) {
+            throw new Error('Failed to register service worker at any path');
+          }
         }
         
         await Promise.race([
