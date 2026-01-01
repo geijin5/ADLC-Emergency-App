@@ -3775,6 +3775,63 @@ const PersonnelDashboard = () => {
                 </div>
               </div>
               <div style={{ borderTop: '1px solid #374151', paddingTop: '20px', marginTop: '20px' }}>
+                <h3 style={{ color: '#f9fafb', marginBottom: '15px' }}>Search Area Configuration</h3>
+                <div className="form-group">
+                  <label>Search Area Type *</label>
+                  <select
+                    className="select"
+                    value={sarForm.search_area_type}
+                    onChange={(e) => setSarForm({ ...sarForm, search_area_type: e.target.value })}
+                    required
+                  >
+                    <option value="pin">📍 Pin Drop (Single Point)</option>
+                    <option value="radius">⭕ Radius Boundary (Circle)</option>
+                    <option value="polygon">🗺️ Polygon (Custom Shape)</option>
+                  </select>
+                  <small style={{ color: '#d1d5db', marginTop: '5px', display: 'block' }}>
+                    {sarForm.search_area_type === 'pin' && 'Shows a single point marker on the map'}
+                    {sarForm.search_area_type === 'radius' && 'Shows a circular boundary around the location (requires latitude, longitude, and radius)'}
+                    {sarForm.search_area_type === 'polygon' && 'Shows a custom polygon shape on the map (requires search area coordinates)'}
+                  </small>
+                </div>
+
+                {sarForm.search_area_type === 'radius' && (
+                  <div className="form-group">
+                    <label>Search Area Radius (meters) *</label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="1"
+                      className="input"
+                      value={sarForm.search_area_radius}
+                      onChange={(e) => setSarForm({ ...sarForm, search_area_radius: e.target.value })}
+                      placeholder="500"
+                      required={sarForm.search_area_type === 'radius'}
+                    />
+                    <small style={{ color: '#d1d5db', marginTop: '5px', display: 'block' }}>
+                      Enter the radius in meters (e.g., 500 for 500 meters, 1609 for 1 mile)
+                    </small>
+                  </div>
+                )}
+
+                {sarForm.search_area_type === 'polygon' && (
+                  <div className="form-group">
+                    <label>Search Area Coordinates (JSON Array) *</label>
+                    <textarea
+                      className="input"
+                      value={sarForm.search_area_coordinates}
+                      onChange={(e) => setSarForm({ ...sarForm, search_area_coordinates: e.target.value })}
+                      placeholder='[[46.1, -112.9], [46.2, -112.8], [46.1, -112.8], [46.1, -112.9]]'
+                      rows="3"
+                      required={sarForm.search_area_type === 'polygon'}
+                    />
+                    <small style={{ color: '#d1d5db', marginTop: '5px', display: 'block' }}>
+                      Array of [latitude, longitude] pairs defining the search area polygon. First and last point should be the same to close the polygon.
+                    </small>
+                  </div>
+                )}
+              </div>
+              <div style={{ borderTop: '1px solid #374151', paddingTop: '20px', marginTop: '20px' }}>
                 <h3 style={{ color: '#f9fafb', marginBottom: '15px' }}>Missing Person Information</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                   <div className="form-group">
@@ -3864,63 +3921,6 @@ const PersonnelDashboard = () => {
                   onChange={(e) => setSarForm({ ...sarForm, assigned_team: e.target.value })}
                   placeholder="e.g., SAR Team Alpha, Mountain Rescue Unit"
                 />
-              </div>
-              <div style={{ borderTop: '1px solid #374151', paddingTop: '20px', marginTop: '20px' }}>
-                <h3 style={{ color: '#f9fafb', marginBottom: '15px' }}>Search Area Configuration</h3>
-                <div className="form-group">
-                  <label>Search Area Type *</label>
-                  <select
-                    className="select"
-                    value={sarForm.search_area_type}
-                    onChange={(e) => setSarForm({ ...sarForm, search_area_type: e.target.value })}
-                    required
-                  >
-                    <option value="pin">📍 Pin Drop (Single Point)</option>
-                    <option value="radius">⭕ Radius Boundary (Circle)</option>
-                    <option value="polygon">🗺️ Polygon (Custom Shape)</option>
-                  </select>
-                  <small style={{ color: '#d1d5db', marginTop: '5px', display: 'block' }}>
-                    {sarForm.search_area_type === 'pin' && 'Shows a single point marker on the map'}
-                    {sarForm.search_area_type === 'radius' && 'Shows a circular boundary around the location (requires latitude, longitude, and radius)'}
-                    {sarForm.search_area_type === 'polygon' && 'Shows a custom polygon shape on the map (requires search area coordinates)'}
-                  </small>
-                </div>
-
-                {sarForm.search_area_type === 'radius' && (
-                  <div className="form-group">
-                    <label>Search Area Radius (meters) *</label>
-                    <input
-                      type="number"
-                      step="any"
-                      min="1"
-                      className="input"
-                      value={sarForm.search_area_radius}
-                      onChange={(e) => setSarForm({ ...sarForm, search_area_radius: e.target.value })}
-                      placeholder="500"
-                      required={sarForm.search_area_type === 'radius'}
-                    />
-                    <small style={{ color: '#d1d5db', marginTop: '5px', display: 'block' }}>
-                      Enter the radius in meters (e.g., 500 for 500 meters, 1609 for 1 mile)
-                    </small>
-                  </div>
-                )}
-
-                {sarForm.search_area_type === 'polygon' && (
-                  <div className="form-group">
-                    <label>Search Area Coordinates (JSON Array) *</label>
-                    <textarea
-                      className="input"
-                      value={sarForm.search_area_coordinates}
-                      onChange={(e) => setSarForm({ ...sarForm, search_area_coordinates: e.target.value })}
-                      placeholder='[[46.1, -112.9], [46.2, -112.8], [46.1, -112.8], [46.1, -112.9]]'
-                      rows="3"
-                      required={sarForm.search_area_type === 'polygon'}
-                    />
-                    <small style={{ color: '#d1d5db', marginTop: '5px', display: 'block' }}>
-                      Array of [latitude, longitude] pairs defining the search area polygon. First and last point should be the same to close the polygon.
-                    </small>
-                  </div>
-                )}
               </div>
               <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
                 <button 
