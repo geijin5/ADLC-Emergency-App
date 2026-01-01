@@ -5,6 +5,7 @@ import 'leaflet/dist/leaflet.css';
 import { getClosedAreas, getParadeRoutes, getDetours, getClosedRoads, getPublicSearchRescue } from '../../api/api';
 import OffsetPolyline from './OffsetPolyline';
 import { getRoadFollowingRoute } from '../../utils/routeUtils';
+import { calculateRouteOffsets, prepareRoutesForOffset } from '../../utils/polylineOffset';
 import './MapView.css';
 
 // Fix for default marker icons in React-Leaflet
@@ -50,6 +51,7 @@ const MapView = ({ refreshTrigger, onSectionClick }) => {
   const [mapZoom, setMapZoom] = useState(DEFAULT_ZOOM);
   const [mapType, setMapType] = useState('standard'); // 'standard' or 'satellite'
   const [routedCoordinates, setRoutedCoordinates] = useState({}); // Cache for routed coordinates
+  const [routeOffsets, setRouteOffsets] = useState({}); // Cache for route offsets to prevent overlap
 
   useEffect(() => {
     fetchMapData();
@@ -123,6 +125,18 @@ const MapView = ({ refreshTrigger, onSectionClick }) => {
     JSON.stringify(detours.map(d => d.id)),
     JSON.stringify(closedRoads.map(r => r.id))
   ]);
+
+  // Calculate offsets for overlapping routes
+  useEffect(() => {
+    const routes = prepareRoutesForOffset(paradeRoutes, detours, closedRoads, routedCoordinates);
+    if (routes.length > 0) {
+      const offsets = calculateRouteOffsets(routes);
+      setRouteOffsets(offsets);
+    } else {
+      setRouteOffsets({});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paradeRoutes, detours, closedRoads, routedCoordinates]);
 
   const fetchMapData = async () => {
     try {
@@ -471,6 +485,7 @@ const MapView = ({ refreshTrigger, onSectionClick }) => {
                     ? [parseFloat(coord[0]), parseFloat(coord[1])]
                     : coord
                 );
+                const offset = routeOffsets[`route-${route.id}`] || 0;
                 const popupContent = `
                   <div>
                     <h3 style="margin: 0 0 10px 0; color: #3b82f6;">🎉 ${route.name}</h3>
@@ -491,7 +506,7 @@ const MapView = ({ refreshTrigger, onSectionClick }) => {
                       interactive: true,
                       bubblingMouseEvents: true
                     }}
-                    offset={0}
+                    offset={offset}
                     popupContent={popupContent}
                     eventHandlers={{
                       mouseover: (e) => {
@@ -514,6 +529,7 @@ const MapView = ({ refreshTrigger, onSectionClick }) => {
                     ? [parseFloat(coord[0]), parseFloat(coord[1])]
                     : coord
                 );
+                const offset = routeOffsets[`detour-${detour.id}`] || 0;
                 const popupContent = `
                   <div>
                     <h3 style="margin: 0 0 10px 0; color: #f59e0b;">🚧 ${detour.name}</h3>
@@ -535,7 +551,7 @@ const MapView = ({ refreshTrigger, onSectionClick }) => {
                       interactive: true,
                       bubblingMouseEvents: true
                     }}
-                    offset={0}
+                    offset={offset}
                     popupContent={popupContent}
                     eventHandlers={{
                       mouseover: (e) => {
@@ -558,6 +574,7 @@ const MapView = ({ refreshTrigger, onSectionClick }) => {
                     ? [parseFloat(coord[0]), parseFloat(coord[1])]
                     : coord
                 );
+                const offset = routeOffsets[`road-${road.id}`] || 0;
                 const popupContent = `
                   <div>
                     <h3 style="margin: 0 0 10px 0; color: #dc2626;">🚫 ${road.name}</h3>
@@ -579,7 +596,7 @@ const MapView = ({ refreshTrigger, onSectionClick }) => {
                       interactive: true,
                       bubblingMouseEvents: true
                     }}
-                    offset={0}
+                    offset={offset}
                     popupContent={popupContent}
                     eventHandlers={{
                       mouseover: (e) => {
