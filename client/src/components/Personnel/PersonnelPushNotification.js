@@ -13,12 +13,34 @@ const PersonnelPushNotification = () => {
   }, []);
 
   const checkSupportAndSubscription = async () => {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    // Check if we're in a Capacitor environment
+    const isCapacitor = typeof window !== 'undefined' && (
+      window.Capacitor || 
+      window.CapacitorWeb ||
+      (window.location && (
+        window.location.protocol === 'capacitor:' ||
+        window.location.protocol === 'file:' ||
+        (window.location.hostname === 'localhost' && window.location.port === '')
+      ))
+    );
+
+    // Check basic support
+    // In Capacitor apps, be more lenient - assume support and let the subscription attempt reveal issues
+    const hasServiceWorker = 'serviceWorker' in navigator;
+    const hasPushManager = 'PushManager' in window;
+    
+    if (!hasServiceWorker && !hasPushManager && !isCapacitor) {
+      console.log('Push notifications not supported: serviceWorker=', hasServiceWorker, 'PushManager=', hasPushManager);
       setIsSupported(false);
       setIsLoading(false);
       return;
     }
 
+    // If in Capacitor or if APIs are available, assume support
+    // (The actual subscription will reveal if it really doesn't work)
+    if (isCapacitor) {
+      console.log('Capacitor app detected - assuming push notification support');
+    }
     setIsSupported(true);
 
     try {
