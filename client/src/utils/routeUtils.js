@@ -25,11 +25,9 @@ export const getRoadFollowingRoute = async (coordinates) => {
     const coordinatesStr = waypoints.map(wp => `${wp[0]},${wp[1]}`).join(';');
     const url = `https://router.project-osrm.org/route/v1/driving/${coordinatesStr}?overview=full&geometries=geojson`;
 
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'ADLC-Emergency-App'
-      }
-    });
+    // Don't include custom headers - OSRM's CORS policy doesn't allow them
+    // The browser's User-Agent will be sent automatically
+    const response = await fetch(url);
 
     if (!response.ok) {
       console.warn('OSRM routing failed, falling back to straight line');
