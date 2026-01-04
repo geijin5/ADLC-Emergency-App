@@ -3,47 +3,102 @@ import { useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet-polylineoffset';
 
-// Helper function to create a stable key from positions
-const getPositionsKey = (positions) => {
-  if (!positions || positions.length === 0) return '';
-  return JSON.stringify(positions.map(p => [Number(p[0]).toFixed(6), Number(p[1]).toFixed(6)]));
+// Helper function for deep comparison of coordinate arrays
+const positionsEqual = (pos1, pos2) => {
+  if (!pos1 || !pos2) return pos1 === pos2;
+  if (pos1.length !== pos2.length) return false;
+  for (let i = 0; i < pos1.length; i++) {
+    const [lat1, lng1] = Array.isArray(pos1[i]) ? pos1[i] : [pos1[i].lat || pos1[i][0], pos1[i].lng || pos1[i][1] || pos1[i][0]];
+    const [lat2, lng2] = Array.isArray(pos2[i]) ? pos2[i] : [pos2[i].lat || pos2[i][0], pos2[i].lng || pos2[i][1] || pos2[i][0]];
+    // Compare with small tolerance for floating point precision
+    if (Math.abs(parseFloat(lat1) - parseFloat(lat2)) > 0.000001 || 
+        Math.abs(parseFloat(lng1) - parseFloat(lng2)) > 0.000001) {
+      return false;
+    }
+  }
+  return true;
 };
 
 // Component to create offset polyline with popup support
 const OffsetPolyline = ({ positions, pathOptions, offset = 0, popupContent, eventHandlers }) => {
   const map = useMap();
   const polylineRef = useRef(null);
-  const positionsKeyRef = useRef('');
+  const prevPositionsRef = useRef();
+  const prevPathOptionsRef = useRef();
+  const prevOffsetRef = useRef();
+  const prevPopupContentRef = useRef();
+  const prevEventHandlersRef = useRef();
 
   useEffect(() => {
-    if (!positions || positions.length === 0) {
-      if (polylineRef.current) {
-        map.removeLayer(polylineRef.current);
-        polylineRef.current = null;
-        positionsKeyRef.current = '';
-      }
-      return;
-    }
-
-    const currentPositionsKey = getPositionsKey(positions);
-    const pathOptionsKey = JSON.stringify(pathOptions);
+    // Check if any relevant props have actually changed by value
+    const positionsChanged = !positionsEqual(prevPositionsRef.current, positions);
+    const pathOptionsChanged = JSON.stringify(prevPathOptionsRef.current) !== JSON.stringify(pathOptions);
+    const offsetChanged = prevOffsetRef.current !== offset;
+    const popupContentChanged = prevPopupContentRef.current !== popupContent;
     
-    // Only recreate if positions or pathOptions actually changed
-    if (positionsKeyRef.current === currentPositionsKey && 
-        polylineRef.current && 
-        offset === (polylineRef.current.options.offset || 0)) {
-      // Nothing changed, keep existing polyline
+    // Compare eventHandlers by checking if keys changed (functions can't be stringified)
+    const prevEventHandlersKeys = prevEventHandlersRef.current ? Object.keys(prevEventHandlersRef.current).sort().join(',') : '';
+    const currentEventHandlersKeys = eventHandlers ? Object.keys(eventHandlers).sort().join(',') : '';
+    const eventHandlersChanged = prevEventHandlersKeys !== currentEventHandlersKeys;
+
+    // If only eventHandlers changed (same keys), update handlers without recreating polyline
+    if (!positionsChanged && !pathOptionsChanged && !offsetChanged && !popupContentChanged && eventHandlersChanged && polylineRef.current) {
+      // Remove old event handlers
+      if (prevEventHandlersRef.current) {
+        Object.keys(prevEventHandlersRef.current).forEach(eventName => {
+          polylineRef.current.off(eventName, prevEventHandlersRef.current[eventName]);
+        });
+      }
+      // Add new event handlers
+      if (eventHandlers) {
+        Object.keys(eventHandlers).forEach(eventName => {
+          polylineRef.current.on(eventName, eventHandlers[eventName]);
+        });
+      }
+      prevEventHandlersRef.current = eventHandlers;
       return;
     }
 
-    // Clean up previous polyline before creating new one
+    // If nothing changed, don't recreate the polyline
+    if (!positionsChanged && !pathOptionsChanged && !offsetChanged && !popupContentChanged && !eventHandlersChanged && polylineRef.current) {
+      return;
+    }
+
+    // Clean up previous polyline if it exists
     if (polylineRef.current) {
       map.removeLayer(polylineRef.current);
       polylineRef.current = null;
     }
 
+    // If no positions, we're done
+    if (!positions || positions.length === 0) {
+      prevPositionsRef.current = positions;
+      prevPathOptionsRef.current = pathOptions;
+      prevOffsetRef.current = offset;
+      prevPopupContentRef.current = popupContent;
+      prevEventHandlersRef.current = eventHandlers;
+      return;
+    }
+
+    // Normalize positions to ensure they're in [lat, lng] format
+    const normalizedPositions = positions.map(coord => {
+      if (Array.isArray(coord) && coord.length >= 2) {
+        return [parseFloat(coord[0]), parseFloat(coord[1])];
+      }
+      return coord;
+    }).filter(coord => Array.isArray(coord) && coord.length === 2);
+
+    if (normalizedPositions.length === 0) {
+      prevPositionsRef.current = positions;
+      prevPathOptionsRef.current = pathOptions;
+      prevOffsetRef.current = offset;
+      prevPopupContentRef.current = popupContent;
+      prevEventHandlersRef.current = eventHandlers;
+      return;
+    }
+
     // Create polyline with offset
-    const polyline = L.polyline(positions, pathOptions);
+    const polyline = L.polyline(normalizedPositions, pathOptions);
     
     // Apply offset (in pixels, positive moves right, negative moves left)
     if (offset !== 0) {
@@ -70,17 +125,22 @@ const OffsetPolyline = ({ positions, pathOptions, offset = 0, popupContent, even
 
     polyline.addTo(map);
     polylineRef.current = polyline;
-    positionsKeyRef.current = currentPositionsKey;
 
+    // Update refs to current props
+    prevPositionsRef.current = positions;
+    prevPathOptionsRef.current = pathOptions;
+    prevOffsetRef.current = offset;
+    prevPopupContentRef.current = popupContent;
+    prevEventHandlersRef.current = eventHandlers;
+
+    // Cleanup function
     return () => {
-      // Only cleanup on unmount
       if (polylineRef.current) {
         map.removeLayer(polylineRef.current);
         polylineRef.current = null;
-        positionsKeyRef.current = '';
       }
     };
-  }, [map, JSON.stringify(positions), JSON.stringify(pathOptions), offset, popupContent]);
+  }, [map, positions, pathOptions, offset, popupContent, eventHandlers]);
 
   return null;
 };

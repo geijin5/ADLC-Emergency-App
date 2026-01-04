@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { MapContainer, TileLayer, Circle, Popup, Marker, useMap, Polyline, Polygon } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -36,6 +36,22 @@ function MapUpdater({ center, zoom }) {
   }, [map, center, zoom]);
   return null;
 }
+
+// Helper function to normalize coordinates to [lat, lng] format
+const normalizeCoordinates = (coordinates) => {
+  if (!coordinates || !Array.isArray(coordinates)) return [];
+  return coordinates
+    .map(coord => {
+      if (Array.isArray(coord) && coord.length >= 2) {
+        const lat = parseFloat(coord[0]);
+        const lng = parseFloat(coord[1]);
+        if (isNaN(lat) || isNaN(lng)) return null;
+        return [lat, lng];
+      }
+      return null;
+    })
+    .filter(coord => coord !== null);
+};
 
 const MapView = ({ refreshTrigger, onSectionClick }) => {
   const [closedAreas, setClosedAreas] = useState([]);
@@ -484,11 +500,8 @@ const MapView = ({ refreshTrigger, onSectionClick }) => {
               {paradeRoutes.filter(route => route.coordinates && Array.isArray(route.coordinates) && route.coordinates.length > 0).map((route, index) => {
                 // Use routed coordinates if available, otherwise use original
                 const coordinatesToUse = routedCoordinates[`route-${route.id}`] || route.coordinates;
-                const positions = coordinatesToUse.map(coord => 
-                  Array.isArray(coord) && coord.length === 2 
-                    ? [parseFloat(coord[0]), parseFloat(coord[1])]
-                    : coord
-                );
+                // Normalize and ensure coordinates are in [lat, lng] format
+                const positions = normalizeCoordinates(coordinatesToUse);
                 const offset = routeOffsets[`route-${route.id}`] || 0;
                 const popupContent = `
                   <div>
@@ -528,11 +541,8 @@ const MapView = ({ refreshTrigger, onSectionClick }) => {
               {detours.filter(detour => detour.coordinates && Array.isArray(detour.coordinates) && detour.coordinates.length > 0).map((detour, index) => {
                 // Use routed coordinates if available, otherwise use original
                 const coordinatesToUse = routedCoordinates[`detour-${detour.id}`] || detour.coordinates;
-                const positions = coordinatesToUse.map(coord => 
-                  Array.isArray(coord) && coord.length === 2 
-                    ? [parseFloat(coord[0]), parseFloat(coord[1])]
-                    : coord
-                );
+                // Normalize and ensure coordinates are in [lat, lng] format
+                const positions = normalizeCoordinates(coordinatesToUse);
                 const offset = routeOffsets[`detour-${detour.id}`] || 0;
                 const popupContent = `
                   <div>
@@ -573,11 +583,8 @@ const MapView = ({ refreshTrigger, onSectionClick }) => {
               {closedRoads.filter(road => road.coordinates && Array.isArray(road.coordinates) && road.coordinates.length > 0).map((road, index) => {
                 // Use routed coordinates if available, otherwise use original
                 const coordinatesToUse = routedCoordinates[`road-${road.id}`] || road.coordinates;
-                const positions = coordinatesToUse.map(coord => 
-                  Array.isArray(coord) && coord.length === 2 
-                    ? [parseFloat(coord[0]), parseFloat(coord[1])]
-                    : coord
-                );
+                // Normalize and ensure coordinates are in [lat, lng] format
+                const positions = normalizeCoordinates(coordinatesToUse);
                 const offset = routeOffsets[`road-${road.id}`] || 0;
                 const popupContent = `
                   <div>
