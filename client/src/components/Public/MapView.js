@@ -53,6 +53,61 @@ const normalizeCoordinates = (coordinates) => {
     .filter(coord => coord !== null);
 };
 
+// Stable path options and event handlers to prevent unnecessary re-renders
+const ROUTE_PATH_OPTIONS = {
+  color: '#3b82f6',
+  weight: 5,
+  opacity: 0.8,
+  interactive: true,
+  bubblingMouseEvents: true
+};
+
+const DETOUR_PATH_OPTIONS = {
+  color: '#f59e0b',
+  weight: 5,
+  opacity: 0.8,
+  dashArray: '10, 5',
+  interactive: true,
+  bubblingMouseEvents: true
+};
+
+const CLOSED_ROAD_PATH_OPTIONS = {
+  color: '#dc2626',
+  weight: 6,
+  opacity: 0.9,
+  dashArray: '15, 10',
+  interactive: true,
+  bubblingMouseEvents: true
+};
+
+// Stable event handlers to prevent unnecessary re-renders
+const ROUTE_EVENT_HANDLERS = {
+  mouseover: (e) => {
+    e.target.setStyle({ weight: 7, opacity: 1 });
+  },
+  mouseout: (e) => {
+    e.target.setStyle({ weight: 5, opacity: 0.8 });
+  }
+};
+
+const DETOUR_EVENT_HANDLERS = {
+  mouseover: (e) => {
+    e.target.setStyle({ weight: 7, opacity: 1 });
+  },
+  mouseout: (e) => {
+    e.target.setStyle({ weight: 5, opacity: 0.8 });
+  }
+};
+
+const CLOSED_ROAD_EVENT_HANDLERS = {
+  mouseover: (e) => {
+    e.target.setStyle({ weight: 8, opacity: 1 });
+  },
+  mouseout: (e) => {
+    e.target.setStyle({ weight: 6, opacity: 0.9 });
+  }
+};
+
 const MapView = ({ refreshTrigger, onSectionClick }) => {
   const [closedAreas, setClosedAreas] = useState([]);
   const [paradeRoutes, setParadeRoutes] = useState([]);
@@ -497,9 +552,15 @@ const MapView = ({ refreshTrigger, onSectionClick }) => {
               )}
 
               {/* Parade Routes */}
-              {paradeRoutes.filter(route => route.coordinates && Array.isArray(route.coordinates) && route.coordinates.length > 0).map((route, index) => {
+              {paradeRoutes.filter(route => route.coordinates && Array.isArray(route.coordinates) && route.coordinates.length > 0).map((route) => {
                 // Use routed coordinates if available, otherwise use original
                 const coordinatesToUse = routedCoordinates[`route-${route.id}`] || route.coordinates;
+                // Debug: Log if using routed coordinates
+                if (routedCoordinates[`route-${route.id}`]) {
+                  console.log(`✅ Using routed coordinates for route ${route.id}: ${routedCoordinates[`route-${route.id}`].length} points`);
+                } else {
+                  console.warn(`⚠️ Using original coordinates for route ${route.id}: ${route.coordinates.length} points (routing may not be complete)`);
+                }
                 // Normalize and ensure coordinates are in [lat, lng] format
                 const positions = normalizeCoordinates(coordinatesToUse);
                 const offset = routeOffsets[`route-${route.id}`] || 0;
@@ -516,29 +577,16 @@ const MapView = ({ refreshTrigger, onSectionClick }) => {
                   <OffsetPolyline
                     key={`route-${route.id}`}
                     positions={positions}
-                    pathOptions={{
-                      color: '#3b82f6',
-                      weight: 5,
-                      opacity: 0.8,
-                      interactive: true,
-                      bubblingMouseEvents: true
-                    }}
+                    pathOptions={ROUTE_PATH_OPTIONS}
                     offset={offset}
                     popupContent={popupContent}
-                    eventHandlers={{
-                      mouseover: (e) => {
-                        e.target.setStyle({ weight: 7, opacity: 1 });
-                      },
-                      mouseout: (e) => {
-                        e.target.setStyle({ weight: 5, opacity: 0.8 });
-                      }
-                    }}
+                    eventHandlers={ROUTE_EVENT_HANDLERS}
                   />
                 );
               })}
 
               {/* Detours */}
-              {detours.filter(detour => detour.coordinates && Array.isArray(detour.coordinates) && detour.coordinates.length > 0).map((detour, index) => {
+              {detours.filter(detour => detour.coordinates && Array.isArray(detour.coordinates) && detour.coordinates.length > 0).map((detour) => {
                 // Use routed coordinates if available, otherwise use original
                 const coordinatesToUse = routedCoordinates[`detour-${detour.id}`] || detour.coordinates;
                 // Normalize and ensure coordinates are in [lat, lng] format
@@ -557,30 +605,16 @@ const MapView = ({ refreshTrigger, onSectionClick }) => {
                   <OffsetPolyline
                     key={`detour-${detour.id}`}
                     positions={positions}
-                    pathOptions={{
-                      color: '#f59e0b',
-                      weight: 5,
-                      opacity: 0.8,
-                      dashArray: '10, 5',
-                      interactive: true,
-                      bubblingMouseEvents: true
-                    }}
+                    pathOptions={DETOUR_PATH_OPTIONS}
                     offset={offset}
                     popupContent={popupContent}
-                    eventHandlers={{
-                      mouseover: (e) => {
-                        e.target.setStyle({ weight: 7, opacity: 1 });
-                      },
-                      mouseout: (e) => {
-                        e.target.setStyle({ weight: 5, opacity: 0.8 });
-                      }
-                    }}
+                    eventHandlers={DETOUR_EVENT_HANDLERS}
                   />
                 );
               })}
 
               {/* Closed Roads */}
-              {closedRoads.filter(road => road.coordinates && Array.isArray(road.coordinates) && road.coordinates.length > 0).map((road, index) => {
+              {closedRoads.filter(road => road.coordinates && Array.isArray(road.coordinates) && road.coordinates.length > 0).map((road) => {
                 // Use routed coordinates if available, otherwise use original
                 const coordinatesToUse = routedCoordinates[`road-${road.id}`] || road.coordinates;
                 // Normalize and ensure coordinates are in [lat, lng] format
@@ -599,24 +633,10 @@ const MapView = ({ refreshTrigger, onSectionClick }) => {
                   <OffsetPolyline
                     key={`road-${road.id}`}
                     positions={positions}
-                    pathOptions={{
-                      color: '#dc2626',
-                      weight: 6,
-                      opacity: 0.9,
-                      dashArray: '15, 10',
-                      interactive: true,
-                      bubblingMouseEvents: true
-                    }}
+                    pathOptions={CLOSED_ROAD_PATH_OPTIONS}
                     offset={offset}
                     popupContent={popupContent}
-                    eventHandlers={{
-                      mouseover: (e) => {
-                        e.target.setStyle({ weight: 8, opacity: 1 });
-                      },
-                      mouseout: (e) => {
-                        e.target.setStyle({ weight: 6, opacity: 0.9 });
-                      }
-                    }}
+                    eventHandlers={CLOSED_ROAD_EVENT_HANDLERS}
                   />
                 );
               })}
