@@ -25,14 +25,15 @@ const OffsetPolyline = ({ positions, pathOptions, offset = 0, popupContent, even
       .filter(coord => coord !== null);
   }, [JSON.stringify(positions)]);
 
-  // Create a single composite key for all dependencies
+  // Create a single composite key for all dependencies that affect geometry
+  // Note: popupContent and eventHandlers are excluded because they don't affect the polyline geometry
   const compositeKey = useMemo(() => {
     const posKey = JSON.stringify(normalizedPositions);
     const pathKey = JSON.stringify(pathOptions);
-    const handlerKey = eventHandlers ? Object.keys(eventHandlers).sort().join(',') : '';
-    return `${posKey}|${pathKey}|${offset}|${popupContent || ''}|${handlerKey}`;
-  }, [normalizedPositions, pathOptions, offset, popupContent, eventHandlers]);
+    return `${posKey}|${pathKey}|${offset}`;
+  }, [normalizedPositions, pathOptions, offset]);
 
+  // Main effect for creating/updating the polyline geometry
   useEffect(() => {
     // Only recreate if the composite key actually changed
     if (prevKeysRef.current === compositeKey && polylineRef.current) {
@@ -55,7 +56,7 @@ const OffsetPolyline = ({ positions, pathOptions, offset = 0, popupContent, even
     const polyline = L.polyline(normalizedPositions, pathOptions);
     
     // Apply offset (in pixels, positive moves right, negative moves left)
-    // Note: leaflet-polylineoffset recalculates on zoom, which is expected behavior
+    // Note: leaflet-polylineoffset uses pixel offsets which shift on zoom (expected behavior)
     if (offset !== 0) {
       polyline.setOffset(offset);
     }
@@ -69,6 +70,7 @@ const OffsetPolyline = ({ positions, pathOptions, offset = 0, popupContent, even
         closeButton: true,
         className: 'custom-popup'
       });
+      prevPopupContentRef.current = popupContent;
     }
 
     // Add event handlers

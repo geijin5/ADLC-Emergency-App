@@ -44,8 +44,16 @@ self.addEventListener('activate', function(event) {
 
 // Fetch event for offline support
 self.addEventListener('fetch', function(event) {
+  const url = new URL(event.request.url);
+  
   // Skip caching for API requests
   if (event.request.url.includes('/api/')) {
+    return;
+  }
+  
+  // Skip caching for external requests (like OSRM routing service)
+  // Only handle requests from the same origin
+  if (url.origin !== self.location.origin) {
     return;
   }
 
