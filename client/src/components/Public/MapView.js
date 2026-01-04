@@ -75,12 +75,11 @@ const MapView = ({ refreshTrigger, onSectionClick }) => {
         ...closedRoads.map(r => ({ ...r, type: 'road' }))
       ].filter(item => item.coordinates && Array.isArray(item.coordinates) && item.coordinates.length >= 2);
 
-      // Only route items that don't already have many points (indicating they need routing)
-      // If an item has 10+ points, it's likely already detailed and doesn't need routing
-      const itemsToRoute = allItems.filter(item => item.coordinates.length < 10);
-      const itemsSkipped = allItems.filter(item => item.coordinates.length >= 10);
+      // Route all items to ensure they follow roads properly
+      // All routes should use OSRM routing to follow actual roads
+      const itemsToRoute = allItems;
 
-      console.log(`🗺️ Road routing: ${itemsToRoute.length} routes to process, ${itemsSkipped.length} routes skipped (already detailed)`);
+      console.log(`🗺️ Road routing: ${itemsToRoute.length} routes to process`);
 
       if (itemsToRoute.length === 0) {
         setRoutedCoordinates({});

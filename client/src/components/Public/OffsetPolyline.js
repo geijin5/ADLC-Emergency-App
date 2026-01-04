@@ -3,17 +3,43 @@ import { useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet-polylineoffset';
 
+// Helper function to create a stable key from positions
+const getPositionsKey = (positions) => {
+  if (!positions || positions.length === 0) return '';
+  return JSON.stringify(positions.map(p => [Number(p[0]).toFixed(6), Number(p[1]).toFixed(6)]));
+};
+
 // Component to create offset polyline with popup support
 const OffsetPolyline = ({ positions, pathOptions, offset = 0, popupContent, eventHandlers }) => {
   const map = useMap();
   const polylineRef = useRef(null);
+  const positionsKeyRef = useRef('');
 
   useEffect(() => {
-    if (!positions || positions.length === 0) return;
+    if (!positions || positions.length === 0) {
+      if (polylineRef.current) {
+        map.removeLayer(polylineRef.current);
+        polylineRef.current = null;
+        positionsKeyRef.current = '';
+      }
+      return;
+    }
 
-    // Clean up previous polyline
+    const currentPositionsKey = getPositionsKey(positions);
+    const pathOptionsKey = JSON.stringify(pathOptions);
+    
+    // Only recreate if positions or pathOptions actually changed
+    if (positionsKeyRef.current === currentPositionsKey && 
+        polylineRef.current && 
+        offset === (polylineRef.current.options.offset || 0)) {
+      // Nothing changed, keep existing polyline
+      return;
+    }
+
+    // Clean up previous polyline before creating new one
     if (polylineRef.current) {
       map.removeLayer(polylineRef.current);
+      polylineRef.current = null;
     }
 
     // Create polyline with offset
@@ -44,17 +70,19 @@ const OffsetPolyline = ({ positions, pathOptions, offset = 0, popupContent, even
 
     polyline.addTo(map);
     polylineRef.current = polyline;
+    positionsKeyRef.current = currentPositionsKey;
 
     return () => {
+      // Only cleanup on unmount
       if (polylineRef.current) {
         map.removeLayer(polylineRef.current);
         polylineRef.current = null;
+        positionsKeyRef.current = '';
       }
     };
-  }, [map, positions, pathOptions, offset, popupContent, eventHandlers]);
+  }, [map, JSON.stringify(positions), JSON.stringify(pathOptions), offset, popupContent]);
 
   return null;
 };
 
 export default OffsetPolyline;
-
