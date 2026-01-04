@@ -70,7 +70,6 @@ const OffsetPolyline = ({ positions, pathOptions, offset = 0, popupContent, even
         closeButton: true,
         className: 'custom-popup'
       });
-      prevPopupContentRef.current = popupContent;
     }
 
     // Add event handlers
