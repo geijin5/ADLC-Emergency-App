@@ -3,9 +3,7 @@ import { MapContainer, TileLayer, Circle, Popup, Marker, useMap, Polyline, Polyg
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { getClosedAreas, getParadeRoutes, getDetours, getClosedRoads, getPublicSearchRescue } from '../../api/api';
-import OffsetPolyline from './OffsetPolyline';
 import { getRoadFollowingRoute } from '../../utils/routeUtils';
-import { calculateRouteOffsets, prepareRoutesForOffset } from '../../utils/polylineOffset';
 import './MapView.css';
 
 // Fix for default marker icons in React-Leaflet
@@ -122,7 +120,6 @@ const MapView = ({ refreshTrigger, onSectionClick }) => {
   const [mapZoom, setMapZoom] = useState(DEFAULT_ZOOM);
   const [mapType, setMapType] = useState('standard'); // 'standard' or 'satellite'
   const [routedCoordinates, setRoutedCoordinates] = useState({}); // Cache for routed coordinates
-  const [routeOffsets, setRouteOffsets] = useState({}); // Cache for route offsets to prevent overlap
 
   useEffect(() => {
     fetchMapData();
@@ -201,17 +198,6 @@ const MapView = ({ refreshTrigger, onSectionClick }) => {
     JSON.stringify(closedRoads.map(r => r.id))
   ]);
 
-  // Calculate offsets for overlapping routes
-  useEffect(() => {
-    const routes = prepareRoutesForOffset(paradeRoutes, detours, closedRoads, routedCoordinates);
-    if (routes.length > 0) {
-      const offsets = calculateRouteOffsets(routes);
-      setRouteOffsets(offsets);
-    } else {
-      setRouteOffsets({});
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paradeRoutes, detours, closedRoads, routedCoordinates]);
 
   const fetchMapData = async () => {
     try {
@@ -555,33 +541,25 @@ const MapView = ({ refreshTrigger, onSectionClick }) => {
               {paradeRoutes.filter(route => route.coordinates && Array.isArray(route.coordinates) && route.coordinates.length > 0).map((route) => {
                 // Use routed coordinates if available, otherwise use original
                 const coordinatesToUse = routedCoordinates[`route-${route.id}`] || route.coordinates;
-                // Debug: Log if using routed coordinates
-                if (routedCoordinates[`route-${route.id}`]) {
-                  console.log(`✅ Using routed coordinates for route ${route.id}: ${routedCoordinates[`route-${route.id}`].length} points`);
-                } else {
-                  console.warn(`⚠️ Using original coordinates for route ${route.id}: ${route.coordinates.length} points (routing may not be complete)`);
-                }
                 // Normalize and ensure coordinates are in [lat, lng] format
                 const positions = normalizeCoordinates(coordinatesToUse);
-                const offset = routeOffsets[`route-${route.id}`] || 0;
-                const popupContent = `
-                  <div>
-                    <h3 style="margin: 0 0 10px 0; color: #3b82f6;">🎉 ${route.name}</h3>
-                    ${route.address ? `<p style="margin: 5px 0; font-weight: 600; color: #f9fafb;">📍 ${route.address}</p>` : ''}
-                    ${route.crossroads ? `<p style="margin: 5px 0; font-size: 12px; color: #9ca3af;">🚦 ${route.crossroads}</p>` : ''}
-                    ${route.description ? `<p style="margin: 5px 0; color: #d1d5db;">${route.description}</p>` : ''}
-                    ${route.expires_at ? `<p style="margin: 5px 0; font-size: 12px; color: #d1d5db;">Expires: ${new Date(route.expires_at).toLocaleString()}</p>` : ''}
-                  </div>
-                `;
                 return (
-                  <OffsetPolyline
+                  <Polyline
                     key={`route-${route.id}`}
                     positions={positions}
                     pathOptions={ROUTE_PATH_OPTIONS}
-                    offset={offset}
-                    popupContent={popupContent}
                     eventHandlers={ROUTE_EVENT_HANDLERS}
-                  />
+                  >
+                    <Popup>
+                      <div>
+                        <h3 style={{ margin: '0 0 10px 0', color: '#3b82f6' }}>🎉 {route.name}</h3>
+                        {route.address && <p style={{ margin: '5px 0', fontWeight: 600, color: '#f9fafb' }}>📍 {route.address}</p>}
+                        {route.crossroads && <p style={{ margin: '5px 0', fontSize: '12px', color: '#9ca3af' }}>🚦 {route.crossroads}</p>}
+                        {route.description && <p style={{ margin: '5px 0', color: '#d1d5db' }}>{route.description}</p>}
+                        {route.expires_at && <p style={{ margin: '5px 0', fontSize: '12px', color: '#d1d5db' }}>Expires: {new Date(route.expires_at).toLocaleString()}</p>}
+                      </div>
+                    </Popup>
+                  </Polyline>
                 );
               })}
 
@@ -591,25 +569,23 @@ const MapView = ({ refreshTrigger, onSectionClick }) => {
                 const coordinatesToUse = routedCoordinates[`detour-${detour.id}`] || detour.coordinates;
                 // Normalize and ensure coordinates are in [lat, lng] format
                 const positions = normalizeCoordinates(coordinatesToUse);
-                const offset = routeOffsets[`detour-${detour.id}`] || 0;
-                const popupContent = `
-                  <div>
-                    <h3 style="margin: 0 0 10px 0; color: #f59e0b;">🚧 ${detour.name}</h3>
-                    ${detour.address ? `<p style="margin: 5px 0; font-weight: 600; color: #f9fafb;">📍 ${detour.address}</p>` : ''}
-                    ${detour.crossroads ? `<p style="margin: 5px 0; font-size: 12px; color: #9ca3af;">🚦 ${detour.crossroads}</p>` : ''}
-                    ${detour.description ? `<p style="margin: 5px 0; color: #d1d5db;">${detour.description}</p>` : ''}
-                    ${detour.expires_at ? `<p style="margin: 5px 0; font-size: 12px; color: #d1d5db;">Expires: ${new Date(detour.expires_at).toLocaleString()}</p>` : ''}
-                  </div>
-                `;
                 return (
-                  <OffsetPolyline
+                  <Polyline
                     key={`detour-${detour.id}`}
                     positions={positions}
                     pathOptions={DETOUR_PATH_OPTIONS}
-                    offset={offset}
-                    popupContent={popupContent}
                     eventHandlers={DETOUR_EVENT_HANDLERS}
-                  />
+                  >
+                    <Popup>
+                      <div>
+                        <h3 style={{ margin: '0 0 10px 0', color: '#f59e0b' }}>🚧 {detour.name}</h3>
+                        {detour.address && <p style={{ margin: '5px 0', fontWeight: 600, color: '#f9fafb' }}>📍 {detour.address}</p>}
+                        {detour.crossroads && <p style={{ margin: '5px 0', fontSize: '12px', color: '#9ca3af' }}>🚦 {detour.crossroads}</p>}
+                        {detour.description && <p style={{ margin: '5px 0', color: '#d1d5db' }}>{detour.description}</p>}
+                        {detour.expires_at && <p style={{ margin: '5px 0', fontSize: '12px', color: '#d1d5db' }}>Expires: {new Date(detour.expires_at).toLocaleString()}</p>}
+                      </div>
+                    </Popup>
+                  </Polyline>
                 );
               })}
 
@@ -619,25 +595,23 @@ const MapView = ({ refreshTrigger, onSectionClick }) => {
                 const coordinatesToUse = routedCoordinates[`road-${road.id}`] || road.coordinates;
                 // Normalize and ensure coordinates are in [lat, lng] format
                 const positions = normalizeCoordinates(coordinatesToUse);
-                const offset = routeOffsets[`road-${road.id}`] || 0;
-                const popupContent = `
-                  <div>
-                    <h3 style="margin: 0 0 10px 0; color: #dc2626;">🚫 ${road.name}</h3>
-                    ${road.address ? `<p style="margin: 5px 0; font-weight: 600; color: #f9fafb;">📍 ${road.address}</p>` : ''}
-                    ${road.crossroads ? `<p style="margin: 5px 0; font-size: 12px; color: #9ca3af;">🚦 ${road.crossroads}</p>` : ''}
-                    ${road.description ? `<p style="margin: 5px 0; color: #d1d5db;">${road.description}</p>` : ''}
-                    ${road.expires_at ? `<p style="margin: 5px 0; font-size: 12px; color: #d1d5db;">Expires: ${new Date(road.expires_at).toLocaleString()}</p>` : ''}
-                  </div>
-                `;
                 return (
-                  <OffsetPolyline
+                  <Polyline
                     key={`road-${road.id}`}
                     positions={positions}
                     pathOptions={CLOSED_ROAD_PATH_OPTIONS}
-                    offset={offset}
-                    popupContent={popupContent}
                     eventHandlers={CLOSED_ROAD_EVENT_HANDLERS}
-                  />
+                  >
+                    <Popup>
+                      <div>
+                        <h3 style={{ margin: '0 0 10px 0', color: '#dc2626' }}>🚫 {road.name}</h3>
+                        {road.address && <p style={{ margin: '5px 0', fontWeight: 600, color: '#f9fafb' }}>📍 {road.address}</p>}
+                        {road.crossroads && <p style={{ margin: '5px 0', fontSize: '12px', color: '#9ca3af' }}>🚦 {road.crossroads}</p>}
+                        {road.description && <p style={{ margin: '5px 0', color: '#d1d5db' }}>{road.description}</p>}
+                        {road.expires_at && <p style={{ margin: '5px 0', fontSize: '12px', color: '#d1d5db' }}>Expires: {new Date(road.expires_at).toLocaleString()}</p>}
+                      </div>
+                    </Popup>
+                  </Polyline>
                 );
               })}
 
