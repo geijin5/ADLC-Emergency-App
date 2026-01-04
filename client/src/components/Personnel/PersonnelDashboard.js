@@ -4,6 +4,9 @@ import { useAuth } from '../../context/AuthContext';
 import { createAlert, getUsers, createUser, updateUser, deleteUser, getDepartments, createDepartment, updateDepartment, deleteDepartment, getPersonnelClosedAreas, createClosedArea, updateClosedArea, deleteClosedArea, getPersonnelParadeRoutes, createParadeRoute, updateParadeRoute, deleteParadeRoute, getPersonnelDetours, createDetour, updateDetour, deleteDetour, getPersonnelClosedRoads, createClosedRoad, updateClosedRoad, deleteClosedRoad, deleteAllClosedRoads, getCallouts, createCallout, acknowledgeCallout, updateCallout, getChatMessages, sendChatMessage, getPersonnelSearchRescue, createSearchRescue, updateSearchRescue, deleteSearchRescue } from '../../api/api';
 import MapView from '../Public/MapView';
 import PersonnelPushNotification from './PersonnelPushNotification';
+import NotificationManagement from './NotificationManagement';
+import NotificationPreferences from './NotificationPreferences';
+import NotificationMetrics from './NotificationMetrics';
 import './PersonnelDashboard.css';
 
 const PersonnelDashboard = () => {
@@ -130,7 +133,7 @@ const PersonnelDashboard = () => {
     contact_phone: '',
     assigned_team: '',
     search_area_coordinates: '',
-    search_area_type: 'pin', // 'pin', 'radius', or 'polygon'
+    search_area_type: 'radius', // Always 'radius' for SAR operations
     search_area_radius: ''
   });
   const [geocoding, setGeocoding] = useState(false);
@@ -641,9 +644,9 @@ const PersonnelDashboard = () => {
         crossroads: sarForm.crossroads && sarForm.crossroads.trim() !== '' ? sarForm.crossroads.trim() : null,
         latitude: sarForm.latitude && sarForm.latitude.trim() !== '' ? sarForm.latitude : null,
         longitude: sarForm.longitude && sarForm.longitude.trim() !== '' ? sarForm.longitude : null,
-        search_area_coordinates: sarForm.search_area_type === 'polygon' && sarForm.search_area_coordinates && sarForm.search_area_coordinates.trim() !== '' ? JSON.parse(sarForm.search_area_coordinates) : null,
-        search_area_type: sarForm.search_area_type || null,
-        search_area_radius: sarForm.search_area_type === 'radius' && sarForm.search_area_radius && sarForm.search_area_radius.trim() !== '' ? parseFloat(sarForm.search_area_radius) : null,
+        search_area_coordinates: null, // Not used for radius-only SAR operations
+        search_area_type: 'radius', // Always 'radius' for SAR operations
+        search_area_radius: sarForm.search_area_radius && sarForm.search_area_radius.trim() !== '' ? parseFloat(sarForm.search_area_radius) : null,
         last_seen_time: sarForm.last_seen_time && sarForm.last_seen_time.trim() !== '' ? sarForm.last_seen_time : null
       };
 
@@ -676,7 +679,7 @@ const PersonnelDashboard = () => {
         contact_phone: '',
         assigned_team: '',
         search_area_coordinates: '',
-        search_area_type: 'pin',
+        search_area_type: 'radius',
         search_area_radius: ''
       });
       fetchData();
@@ -708,8 +711,8 @@ const PersonnelDashboard = () => {
       contact_name: operation.contact_name || '',
       contact_phone: operation.contact_phone || '',
       assigned_team: operation.assigned_team || '',
-      search_area_coordinates: operation.search_area_coordinates ? JSON.stringify(operation.search_area_coordinates) : '',
-      search_area_type: operation.search_area_type || (operation.search_area_coordinates ? 'polygon' : (operation.search_area_radius ? 'radius' : 'pin')),
+      search_area_coordinates: '',
+      search_area_type: 'radius', // Always use radius for SAR operations
       search_area_radius: operation.search_area_radius || ''
     });
     setShowSARModal(true);
@@ -1462,6 +1465,17 @@ const PersonnelDashboard = () => {
         
         {/* Push Notification Subscription */}
         <PersonnelPushNotification />
+
+        {/* Notification Preferences */}
+        <NotificationPreferences user={user} />
+
+        {/* Notification Management (Admin/Officer) */}
+        {(user?.role === 'admin' || user?.role === 'officer') && (
+          <>
+            <NotificationManagement user={user} />
+            <NotificationMetrics user={user} />
+          </>
+        )}
 
         <>
             {/* Active Callouts Alert */}
@@ -3777,59 +3791,21 @@ const PersonnelDashboard = () => {
               <div style={{ borderTop: '1px solid #374151', paddingTop: '20px', marginTop: '20px' }}>
                 <h3 style={{ color: '#f9fafb', marginBottom: '15px' }}>Search Area Configuration</h3>
                 <div className="form-group">
-                  <label>Search Area Type *</label>
-                  <select
-                    className="select"
-                    value={sarForm.search_area_type}
-                    onChange={(e) => setSarForm({ ...sarForm, search_area_type: e.target.value })}
+                  <label>Search Area Radius (meters) *</label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="1"
+                    className="input"
+                    value={sarForm.search_area_radius}
+                    onChange={(e) => setSarForm({ ...sarForm, search_area_radius: e.target.value })}
+                    placeholder="500"
                     required
-                  >
-                    <option value="pin">📍 Pin Drop (Single Point)</option>
-                    <option value="radius">⭕ Radius Boundary (Circle)</option>
-                    <option value="polygon">🗺️ Polygon (Custom Shape)</option>
-                  </select>
+                  />
                   <small style={{ color: '#d1d5db', marginTop: '5px', display: 'block' }}>
-                    {sarForm.search_area_type === 'pin' && 'Shows a single point marker on the map'}
-                    {sarForm.search_area_type === 'radius' && 'Shows a circular boundary around the location (requires latitude, longitude, and radius)'}
-                    {sarForm.search_area_type === 'polygon' && 'Shows a custom polygon shape on the map (requires search area coordinates)'}
+                    Enter the radius in meters to define the circular search area. Examples: 500 meters (0.3 miles), 1000 meters (0.6 miles), 1609 meters (1 mile), 5000 meters (3.1 miles)
                   </small>
                 </div>
-
-                {sarForm.search_area_type === 'radius' && (
-                  <div className="form-group">
-                    <label>Search Area Radius (meters) *</label>
-                    <input
-                      type="number"
-                      step="any"
-                      min="1"
-                      className="input"
-                      value={sarForm.search_area_radius}
-                      onChange={(e) => setSarForm({ ...sarForm, search_area_radius: e.target.value })}
-                      placeholder="500"
-                      required={sarForm.search_area_type === 'radius'}
-                    />
-                    <small style={{ color: '#d1d5db', marginTop: '5px', display: 'block' }}>
-                      Enter the radius in meters (e.g., 500 for 500 meters, 1609 for 1 mile)
-                    </small>
-                  </div>
-                )}
-
-                {sarForm.search_area_type === 'polygon' && (
-                  <div className="form-group">
-                    <label>Search Area Coordinates (JSON Array) *</label>
-                    <textarea
-                      className="input"
-                      value={sarForm.search_area_coordinates}
-                      onChange={(e) => setSarForm({ ...sarForm, search_area_coordinates: e.target.value })}
-                      placeholder='[[46.1, -112.9], [46.2, -112.8], [46.1, -112.8], [46.1, -112.9]]'
-                      rows="3"
-                      required={sarForm.search_area_type === 'polygon'}
-                    />
-                    <small style={{ color: '#d1d5db', marginTop: '5px', display: 'block' }}>
-                      Array of [latitude, longitude] pairs defining the search area polygon. First and last point should be the same to close the polygon.
-                    </small>
-                  </div>
-                )}
               </div>
               <div style={{ borderTop: '1px solid #374151', paddingTop: '20px', marginTop: '20px' }}>
                 <h3 style={{ color: '#f9fafb', marginBottom: '15px' }}>Missing Person Information</h3>

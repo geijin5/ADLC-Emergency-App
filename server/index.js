@@ -7,6 +7,8 @@ const fs = require('fs');
 const webpush = require('web-push');
 const { execSync } = require('child_process');
 const { initDatabase, run, get, all, serialize, convertSQL, insertOrIgnore, getDbType } = require('./db');
+const { NotificationService, NOTIFICATION_TYPES, NOTIFICATION_CATEGORIES, TARGET_TYPES } = require('./services/notificationService');
+const { EscalationService } = require('./services/escalationService');
 require('dotenv').config();
 
 const app = express();
@@ -419,6 +421,208 @@ const isPostgres = dbType === 'postgres';
     )`;
   await run(personnelPushSubsTableSQL);
 
+  // Enhanced push subscriptions table with platform support
+  try {
+    await run(`ALTER TABLE push_subscriptions ADD COLUMN platform ${isPostgres ? 'VARCHAR(50)' : 'TEXT'} DEFAULT 'web'`);
+  } catch (err) {
+    if (!err.message.includes('duplicate column') && !err.message.includes('already exists')) {
+      console.error('Error adding platform column to push_subscriptions:', err.message);
+    }
+  }
+  try {
+    await run(`ALTER TABLE push_subscriptions ADD COLUMN device_token ${isPostgres ? 'TEXT' : 'TEXT'}`);
+  } catch (err) {
+    if (!err.message.includes('duplicate column') && !err.message.includes('already exists')) {
+      console.error('Error adding device_token column to push_subscriptions:', err.message);
+    }
+  }
+  try {
+    await run(`ALTER TABLE personnel_push_subscriptions ADD COLUMN platform ${isPostgres ? 'VARCHAR(50)' : 'TEXT'} DEFAULT 'web'`);
+  } catch (err) {
+    if (!err.message.includes('duplicate column') && !err.message.includes('already exists')) {
+      console.error('Error adding platform column to personnel_push_subscriptions:', err.message);
+    }
+  }
+  try {
+    await run(`ALTER TABLE personnel_push_subscriptions ADD COLUMN device_token ${isPostgres ? 'TEXT' : 'TEXT'}`);
+  } catch (err) {
+    if (!err.message.includes('duplicate column') && !err.message.includes('already exists')) {
+      console.error('Error adding device_token column to personnel_push_subscriptions:', err.message);
+    }
+  }
+
+  // Notification logs table (track all notification sends)
+  const notificationLogsTableSQL = isPostgres
+    ? `CREATE TABLE IF NOT EXISTS notification_logs (
+      id SERIAL PRIMARY KEY,
+      notification_id VARCHAR(255),
+      type VARCHAR(50) NOT NULL,
+      category VARCHAR(50),
+      title VARCHAR(255) NOT NULL,
+      message TEXT NOT NULL,
+      target_type VARCHAR(50) NOT NULL,
+      target_ids TEXT,
+      sender_id INTEGER,
+      sender_name VARCHAR(255),
+      platform VARCHAR(50),
+      delivery_status VARCHAR(50) DEFAULT 'pending',
+      sent_at TIMESTAMP,
+      delivered_at TIMESTAMP,
+      failed_at TIMESTAMP,
+      error_message TEXT,
+      total_recipients INTEGER DEFAULT 0,
+      successful_deliveries INTEGER DEFAULT 0,
+      failed_deliveries INTEGER DEFAULT 0,
+      is_test_mode BOOLEAN DEFAULT false,
+      scheduled_for TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (sender_id) REFERENCES users(id)
+    )`
+    : `CREATE TABLE IF NOT EXISTS notification_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      notification_id TEXT,
+      type TEXT NOT NULL,
+      category TEXT,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      target_type TEXT NOT NULL,
+      target_ids TEXT,
+      sender_id INTEGER,
+      sender_name TEXT,
+      platform TEXT,
+      delivery_status TEXT DEFAULT 'pending',
+      sent_at DATETIME,
+      delivered_at DATETIME,
+      failed_at DATETIME,
+      error_message TEXT,
+      total_recipients INTEGER DEFAULT 0,
+      successful_deliveries INTEGER DEFAULT 0,
+      failed_deliveries INTEGER DEFAULT 0,
+      is_test_mode INTEGER DEFAULT 0,
+      scheduled_for DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (sender_id) REFERENCES users(id)
+    )`;
+  await run(notificationLogsTableSQL);
+
+  // Notification delivery tracking table (individual delivery records)
+  const notificationDeliveryTableSQL = isPostgres
+    ? `CREATE TABLE IF NOT EXISTS notification_deliveries (
+      id SERIAL PRIMARY KEY,
+      notification_log_id INTEGER NOT NULL,
+      user_id INTEGER,
+      subscription_id INTEGER,
+      endpoint TEXT,
+      platform VARCHAR(50),
+      delivery_status VARCHAR(50) DEFAULT 'pending',
+      sent_at TIMESTAMP,
+      delivered_at TIMESTAMP,
+      failed_at TIMESTAMP,
+      error_message TEXT,
+      retry_count INTEGER DEFAULT 0,
+      FOREIGN KEY (notification_log_id) REFERENCES notification_logs(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+    )`
+    : `CREATE TABLE IF NOT EXISTS notification_deliveries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      notification_log_id INTEGER NOT NULL,
+      user_id INTEGER,
+      subscription_id INTEGER,
+      endpoint TEXT,
+      platform TEXT,
+      delivery_status TEXT DEFAULT 'pending',
+      sent_at DATETIME,
+      delivered_at DATETIME,
+      failed_at DATETIME,
+      error_message TEXT,
+      retry_count INTEGER DEFAULT 0,
+      FOREIGN KEY (notification_log_id) REFERENCES notification_logs(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+    )`;
+  await run(notificationDeliveryTableSQL);
+
+  // Notification preferences table (user opt-in/out settings)
+  const notificationPreferencesTableSQL = isPostgres
+    ? `CREATE TABLE IF NOT EXISTS notification_preferences (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER,
+      is_public_user BOOLEAN DEFAULT false,
+      enabled BOOLEAN DEFAULT true,
+      categories TEXT,
+      emergency_only BOOLEAN DEFAULT false,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )`
+    : `CREATE TABLE IF NOT EXISTS notification_preferences (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      is_public_user INTEGER DEFAULT 0,
+      enabled INTEGER DEFAULT 1,
+      categories TEXT,
+      emergency_only INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )`;
+  await run(notificationPreferencesTableSQL);
+
+  // Notification acknowledgements table (for personnel callouts)
+  const notificationAcknowledgementsTableSQL = isPostgres
+    ? `CREATE TABLE IF NOT EXISTS notification_acknowledgements (
+      id SERIAL PRIMARY KEY,
+      notification_log_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      callout_id INTEGER,
+      acknowledged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      response TEXT,
+      FOREIGN KEY (notification_log_id) REFERENCES notification_logs(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (callout_id) REFERENCES callouts(id) ON DELETE CASCADE
+    )`
+    : `CREATE TABLE IF NOT EXISTS notification_acknowledgements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      notification_log_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      callout_id INTEGER,
+      acknowledged_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      response TEXT,
+      FOREIGN KEY (notification_log_id) REFERENCES notification_logs(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (callout_id) REFERENCES callouts(id) ON DELETE CASCADE
+    )`;
+  await run(notificationAcknowledgementsTableSQL);
+
+  // Notification audit log table (for tracking all notification actions)
+  const notificationAuditTableSQL = isPostgres
+    ? `CREATE TABLE IF NOT EXISTS notification_audit_logs (
+      id SERIAL PRIMARY KEY,
+      action VARCHAR(50) NOT NULL,
+      notification_log_id INTEGER,
+      user_id INTEGER,
+      user_name VARCHAR(255),
+      action_details TEXT,
+      ip_address VARCHAR(45),
+      user_agent TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (notification_log_id) REFERENCES notification_logs(id) ON DELETE SET NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+    )`
+    : `CREATE TABLE IF NOT EXISTS notification_audit_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      action TEXT NOT NULL,
+      notification_log_id INTEGER,
+      user_id INTEGER,
+      user_name TEXT,
+      action_details TEXT,
+      ip_address TEXT,
+      user_agent TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (notification_log_id) REFERENCES notification_logs(id) ON DELETE SET NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+    )`;
+  await run(notificationAuditTableSQL);
+
   // Chat messages table
   const chatMessagesTableSQL = isPostgres
     ? `CREATE TABLE IF NOT EXISTS chat_messages (
@@ -648,6 +852,41 @@ if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
   console.log('VAPID keys not configured. Push notifications will be disabled.');
   console.log('To enable push notifications, run: npx web-push generate-vapid-keys');
   console.log('Then add the keys to your .env file as VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY');
+}
+
+// Initialize notification service
+let notificationService;
+let escalationService;
+let notificationScheduler;
+let auditLogService;
+try {
+  notificationService = new NotificationService();
+  console.log('✅ Notification service initialized');
+  
+  // Initialize audit log service
+  const { AuditLogService } = require('./services/auditLogService');
+  auditLogService = new AuditLogService();
+  console.log('✅ Audit log service initialized');
+  
+  // Initialize escalation service
+  if (notificationService) {
+    escalationService = new EscalationService(notificationService);
+    escalationService.start();
+  }
+  
+  // Initialize notification scheduler
+  if (notificationService) {
+    const { NotificationScheduler } = require('./services/notificationScheduler');
+    notificationScheduler = new NotificationScheduler(notificationService);
+    notificationScheduler.start();
+    console.log('✅ Notification scheduler initialized');
+  }
+} catch (error) {
+  console.error('❌ Failed to initialize notification service:', error);
+  notificationService = null;
+  escalationService = null;
+  notificationScheduler = null;
+  auditLogService = null;
 }
 
 // Middleware to verify JWT token
@@ -1964,13 +2203,23 @@ app.delete('/api/personnel/closed-roads/:id', authenticateToken, async (req, res
 app.get('/api/personnel/callouts', authenticateToken, async (req, res) => {
   // Get callouts for user's department or all if admin
   const query = req.user.role === 'admin' 
-    ? `SELECT c.*, d.name as department_name, d.color as department_color, u.name as created_by_name
+    ? `SELECT c.*, d.name as department_name, d.color as department_color, u.name as created_by_name,
+              (SELECT COUNT(*) FROM notification_acknowledgements na WHERE na.callout_id = c.id) as acknowledgement_count,
+              (SELECT COUNT(*) FROM notification_deliveries nd 
+               INNER JOIN notification_logs nl ON nd.notification_log_id = nl.id 
+               WHERE nl.type = 'personnel-callout' 
+               AND nl.title LIKE '%' || c.title || '%') as delivery_count
        FROM callouts c
        LEFT JOIN departments d ON c.department_id = d.id
        LEFT JOIN users u ON c.created_by = u.id
        WHERE c.is_active = ${isPostgres ? 'true' : '1'}
        ORDER BY c.created_at DESC`
-    : `SELECT c.*, d.name as department_name, d.color as department_color, u.name as created_by_name
+    : `SELECT c.*, d.name as department_name, d.color as department_color, u.name as created_by_name,
+              (SELECT COUNT(*) FROM notification_acknowledgements na WHERE na.callout_id = c.id) as acknowledgement_count,
+              (SELECT COUNT(*) FROM notification_deliveries nd 
+               INNER JOIN notification_logs nl ON nd.notification_log_id = nl.id 
+               WHERE nl.type = 'personnel-callout' 
+               AND nl.title LIKE '%' || c.title || '%') as delivery_count
        FROM callouts c
        LEFT JOIN departments d ON c.department_id = d.id
        LEFT JOIN users u ON c.created_by = u.id
@@ -1980,7 +2229,24 @@ app.get('/api/personnel/callouts', authenticateToken, async (req, res) => {
 
   try {
     const callouts = await all(query, req.user.role === 'admin' ? [] : [req.user.id]);
-    res.json(callouts);
+    
+    // Enrich with acknowledgement status for current user
+    const enrichedCallouts = await Promise.all(callouts.map(async (callout) => {
+      const userAcknowledged = await get(
+        'SELECT id FROM notification_acknowledgements WHERE callout_id = ? AND user_id = ?',
+        [callout.id, req.user.id]
+      );
+      
+      return {
+        ...callout,
+        user_acknowledged: !!userAcknowledged,
+        acknowledgement_rate: callout.delivery_count > 0 
+          ? (callout.acknowledgement_count / callout.delivery_count * 100).toFixed(1)
+          : 0
+      };
+    }));
+    
+    res.json(enrichedCallouts);
   } catch (err) {
     console.error('Error fetching callouts:', err);
     return res.status(500).json({ error: 'Failed to fetch callouts' });
@@ -2010,13 +2276,41 @@ app.post('/api/personnel/callouts', authenticateToken, async (req, res) => {
       [title, message, department_id, location || '', priority || 'high', req.user.id, expiresAtValue]
     );
     
-    // Send push notifications to personnel in the target department
-    sendPushNotificationToPersonnel(title, message, [department_id], priority || 'high');
+    const calloutId = result.lastID;
+    
+    // Send push notifications using notification service (for tracking)
+    if (notificationService) {
+      try {
+        await notificationService.sendNotification({
+          type: NOTIFICATION_TYPES.PERSONNEL_CALLOUT,
+          category: NOTIFICATION_CATEGORIES.EMERGENCY,
+          title: `🚨 MASS CALLOUT: ${title}`,
+          message: message,
+          targetType: TARGET_TYPES.DEPARTMENT,
+          targetIds: [department_id],
+          sender: { id: req.user.id, name: req.user.name || req.user.username },
+          payload: {
+            calloutId: calloutId,
+            location: location || '',
+            priority: priority || 'high'
+          },
+          isEmergency: true,
+          isTestMode: false
+        });
+      } catch (notifError) {
+        console.error('Error sending notification via notification service:', notifError);
+        // Fallback to old method
+        sendPushNotificationToPersonnel(title, message, [department_id], priority || 'high');
+      }
+    } else {
+      // Fallback to old method if notification service not available
+      sendPushNotificationToPersonnel(title, message, [department_id], priority || 'high');
+    }
     
     res.json({ 
       success: true, 
       message: 'Mass callout sent successfully',
-      calloutId: result.lastID 
+      calloutId: calloutId
     });
   } catch (err) {
     console.error('Database error creating callout:', err);
@@ -2026,14 +2320,16 @@ app.post('/api/personnel/callouts', authenticateToken, async (req, res) => {
 
 app.put('/api/personnel/callouts/:id/acknowledge', authenticateToken, async (req, res) => {
   const { id } = req.params;
+  const { response } = req.body; // Optional response message
   
   try {
-    // Get current acknowledged list
-    const callout = await get('SELECT acknowledged_by FROM callouts WHERE id = ?', [id]);
+    // Get callout details
+    const callout = await get('SELECT acknowledged_by, created_at, title FROM callouts WHERE id = ?', [id]);
     if (!callout) {
       return res.status(404).json({ error: 'Callout not found' });
     }
 
+    // Update acknowledged_by in callouts table (legacy support)
     let acknowledged = [];
     if (callout.acknowledged_by) {
       try {
@@ -2043,15 +2339,44 @@ app.put('/api/personnel/callouts/:id/acknowledge', authenticateToken, async (req
       }
     }
 
-    // Add current user if not already acknowledged
     if (!acknowledged.includes(req.user.id)) {
       acknowledged.push(req.user.id);
+      await run(
+        'UPDATE callouts SET acknowledged_by = ? WHERE id = ?',
+        [JSON.stringify(acknowledged), id]
+      );
     }
 
-    await run(
-      'UPDATE callouts SET acknowledged_by = ? WHERE id = ?',
-      [JSON.stringify(acknowledged), id]
+    // Find associated notification log
+    const notificationLogs = await all(
+      `SELECT id FROM notification_logs 
+       WHERE type = 'personnel-callout' 
+       AND title LIKE ? 
+       AND created_at >= datetime(?, '-1 hour')
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [`%${callout.title}%`, callout.created_at]
     );
+
+    // Create acknowledgement record in notification_acknowledgements table
+    if (notificationLogs && notificationLogs.length > 0) {
+      const notificationLogId = notificationLogs[0].id;
+      
+      // Check if already acknowledged
+      const existing = await get(
+        'SELECT id FROM notification_acknowledgements WHERE notification_log_id = ? AND user_id = ? AND callout_id = ?',
+        [notificationLogId, req.user.id, id]
+      );
+
+      if (!existing) {
+        await run(
+          `INSERT INTO notification_acknowledgements (notification_log_id, user_id, callout_id, response)
+           VALUES (?, ?, ?, ?)`,
+          [notificationLogId, req.user.id, id, response || null]
+        );
+      }
+    }
+
     res.json({ success: true, message: 'Callout acknowledged' });
   } catch (err) {
     console.error('Error acknowledging callout:', err);
@@ -2706,6 +3031,678 @@ app.post('/api/personnel/push/unsubscribe', authenticateToken, async (req, res) 
   } catch (err) {
     console.error('Error removing personnel push subscription:', err);
     return res.status(500).json({ error: 'Failed to remove subscription' });
+  }
+});
+
+// Register device token for FCM/APNs
+app.post('/api/personnel/push/register-device', authenticateToken, async (req, res) => {
+  const { deviceToken, platform } = req.body;
+
+  if (!deviceToken || !platform) {
+    return res.status(400).json({ error: 'Device token and platform are required' });
+  }
+
+  if (platform !== 'android' && platform !== 'ios') {
+    return res.status(400).json({ error: 'Platform must be "android" or "ios"' });
+  }
+
+  try {
+    // Check if token already exists for this user
+    const existing = await get(
+      'SELECT id FROM personnel_push_subscriptions WHERE device_token = ? AND user_id = ?',
+      [deviceToken, req.user.id]
+    );
+
+    if (existing) {
+      // Update existing record
+      await run(
+        'UPDATE personnel_push_subscriptions SET platform = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [platform, existing.id]
+      );
+      res.json({ success: true, message: 'Device token updated successfully' });
+    } else {
+      // Create new record (endpoint can be null for native apps, device_token is the identifier)
+      if (isPostgres) {
+        await run(
+          `INSERT INTO personnel_push_subscriptions (user_id, endpoint, p256dh, auth, platform, device_token)
+           VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT (endpoint) DO UPDATE SET platform = EXCLUDED.platform, device_token = EXCLUDED.device_token`,
+          [req.user.id, `device://${platform}/${deviceToken.substring(0, 20)}`, '', '', platform, deviceToken]
+        );
+      } else {
+        await run(
+          `INSERT OR REPLACE INTO personnel_push_subscriptions (user_id, endpoint, p256dh, auth, platform, device_token)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [req.user.id, `device://${platform}/${deviceToken.substring(0, 20)}`, '', '', platform, deviceToken]
+        );
+      }
+      res.json({ success: true, message: 'Device token registered successfully' });
+    }
+  } catch (err) {
+    console.error('Error registering device token:', err);
+    return res.status(500).json({ error: 'Failed to register device token' });
+  }
+});
+
+// ==========================================
+// Comprehensive Notification System API
+// ==========================================
+
+// Send notification
+app.post('/api/personnel/notifications/send', authenticateToken, async (req, res) => {
+  // Check permissions - admin and officers can send
+  if (req.user.role !== 'admin' && req.user.role !== 'officer') {
+    return res.status(403).json({ error: 'Admin or officer access required to send notifications' });
+  }
+
+  if (!notificationService) {
+    return res.status(503).json({ error: 'Notification service not available' });
+  }
+
+  const {
+    type = NOTIFICATION_TYPES.PUBLIC_ALERT,
+    category = NOTIFICATION_CATEGORIES.INFO,
+    title,
+    message,
+    targetType = TARGET_TYPES.ALL,
+    targetIds = [],
+    isEmergency = false,
+    isTestMode = false,
+    scheduledFor = null
+  } = req.body;
+
+  if (!title || !message) {
+    return res.status(400).json({ error: 'Title and message are required' });
+  }
+
+  try {
+    const logEntry = await notificationService.sendNotification({
+      type,
+      category,
+      title,
+      message,
+      targetType,
+      targetIds: Array.isArray(targetIds) ? targetIds : [],
+      sender: { id: req.user.id, name: req.user.name || req.user.username },
+      payload: {},
+      isEmergency,
+      isTestMode,
+      scheduledFor: scheduledFor ? new Date(scheduledFor) : null
+    });
+
+    // Log audit event
+    if (auditLogService) {
+      const { AUDIT_ACTIONS } = require('./services/auditLogService');
+      await auditLogService.logAction({
+        action: scheduledFor ? AUDIT_ACTIONS.NOTIFICATION_SCHEDULED : (isTestMode ? AUDIT_ACTIONS.TEST_NOTIFICATION : AUDIT_ACTIONS.NOTIFICATION_SENT),
+        notificationLogId: logEntry.id,
+        userId: req.user.id,
+        userName: req.user.name || req.user.username,
+        actionDetails: {
+          type,
+          category,
+          targetType,
+          targetIds: Array.isArray(targetIds) ? targetIds : [],
+          isEmergency,
+          isTestMode,
+          scheduledFor: scheduledFor || null
+        },
+        ipAddress: req.ip || req.connection.remoteAddress,
+        userAgent: req.get('user-agent')
+      });
+    }
+
+    res.json({
+      success: true,
+      message: scheduledFor 
+        ? `Notification scheduled for ${new Date(scheduledFor).toLocaleString()}` 
+        : (isTestMode ? 'Test notification logged (not delivered to public)' : 'Notification sent successfully'),
+      notificationLogId: logEntry.id,
+      notificationId: logEntry.notification_id
+    });
+  } catch (error) {
+    console.error('Error sending notification:', error);
+    
+    // Log error to audit
+    if (auditLogService) {
+      const { AUDIT_ACTIONS } = require('./services/auditLogService');
+      await auditLogService.logAction({
+        action: AUDIT_ACTIONS.SYSTEM_ERROR,
+        userId: req.user.id,
+        userName: req.user.name || req.user.username,
+        actionDetails: { error: error.message, endpoint: '/api/personnel/notifications/send' },
+        ipAddress: req.ip || req.connection.remoteAddress,
+        userAgent: req.get('user-agent')
+      });
+    }
+    
+    return res.status(500).json({ error: error.message || 'Failed to send notification' });
+  }
+});
+
+// Get notification logs
+app.get('/api/personnel/notifications/logs', authenticateToken, async (req, res) => {
+  // Only admin and officers can view logs
+  if (req.user.role !== 'admin' && req.user.role !== 'officer') {
+    return res.status(403).json({ error: 'Admin or officer access required' });
+  }
+
+  if (!notificationService) {
+    return res.status(503).json({ error: 'Notification service not available' });
+  }
+
+  const {
+    limit = 100,
+    offset = 0,
+    type,
+    targetType,
+    status,
+    senderId
+  } = req.query;
+
+  try {
+    const filters = {
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      type: type || undefined,
+      targetType: targetType || undefined,
+      status: status || undefined,
+      senderId: senderId ? parseInt(senderId) : undefined
+    };
+
+    const logs = await notificationService.getNotificationLogs(filters);
+    res.json(logs);
+  } catch (error) {
+    console.error('Error fetching notification logs:', error);
+    return res.status(500).json({ error: 'Failed to fetch notification logs' });
+  }
+});
+
+// Get notification log details
+app.get('/api/personnel/notifications/logs/:id', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin' && req.user.role !== 'officer') {
+    return res.status(403).json({ error: 'Admin or officer access required' });
+  }
+
+  if (!notificationService) {
+    return res.status(503).json({ error: 'Notification service not available' });
+  }
+
+  const { id } = req.params;
+
+  try {
+    const logEntry = await notificationService.getNotificationLog(parseInt(id));
+    if (!logEntry) {
+      return res.status(404).json({ error: 'Notification log not found' });
+    }
+
+    // Get delivery statistics
+    const statistics = await notificationService.getDeliveryStatistics(parseInt(id));
+
+    // Get individual deliveries
+    const deliveries = await all(
+      'SELECT * FROM notification_deliveries WHERE notification_log_id = ? ORDER BY created_at DESC',
+      [id]
+    );
+
+    res.json({
+      ...logEntry,
+      statistics,
+      deliveries
+    });
+  } catch (error) {
+    console.error('Error fetching notification log:', error);
+    return res.status(500).json({ error: 'Failed to fetch notification log' });
+  }
+});
+
+// Get delivery statistics for a notification
+app.get('/api/personnel/notifications/logs/:id/statistics', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin' && req.user.role !== 'officer') {
+    return res.status(403).json({ error: 'Admin or officer access required' });
+  }
+
+  if (!notificationService) {
+    return res.status(503).json({ error: 'Notification service not available' });
+  }
+
+  const { id } = req.params;
+
+  try {
+    const statistics = await notificationService.getDeliveryStatistics(parseInt(id));
+    res.json(statistics);
+  } catch (error) {
+    console.error('Error fetching notification statistics:', error);
+    return res.status(500).json({ error: 'Failed to fetch notification statistics' });
+  }
+});
+
+// Get user notification preferences
+app.get('/api/personnel/notifications/preferences', authenticateToken, async (req, res) => {
+  try {
+    const preferences = await get(
+      'SELECT * FROM notification_preferences WHERE user_id = ?',
+      [req.user.id]
+    );
+
+    if (!preferences) {
+      // Return default preferences
+      res.json({
+        userId: req.user.id,
+        enabled: true,
+        categories: null,
+        emergencyOnly: false
+      });
+    } else {
+      res.json({
+        ...preferences,
+        categories: preferences.categories ? JSON.parse(preferences.categories) : null
+      });
+    }
+  } catch (error) {
+    console.error('Error fetching notification preferences:', error);
+    return res.status(500).json({ error: 'Failed to fetch notification preferences' });
+  }
+});
+
+// Update user notification preferences
+app.put('/api/personnel/notifications/preferences', authenticateToken, async (req, res) => {
+  const { enabled, categories, emergencyOnly } = req.body;
+
+  try {
+    const existing = await get(
+      'SELECT id FROM notification_preferences WHERE user_id = ?',
+      [req.user.id]
+    );
+
+    const categoriesJson = categories ? JSON.stringify(categories) : null;
+    const isPostgres = dbType === 'postgres';
+
+    if (existing) {
+      // Update existing preferences
+      await run(
+        `UPDATE notification_preferences 
+         SET enabled = ?, categories = ?, emergency_only = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE user_id = ?`,
+        [
+          enabled !== undefined ? (isPostgres ? enabled : (enabled ? 1 : 0)) : true,
+          categoriesJson,
+          emergencyOnly !== undefined ? (isPostgres ? emergencyOnly : (emergencyOnly ? 1 : 0)) : false,
+          req.user.id
+        ]
+      );
+    } else {
+      // Create new preferences
+      await run(
+        `INSERT INTO notification_preferences (user_id, enabled, categories, emergency_only)
+         VALUES (?, ?, ?, ?)`,
+        [
+          req.user.id,
+          enabled !== undefined ? (isPostgres ? enabled : (enabled ? 1 : 0)) : true,
+          categoriesJson,
+          emergencyOnly !== undefined ? (isPostgres ? emergencyOnly : (emergencyOnly ? 1 : 0)) : false
+        ]
+      );
+    }
+
+    res.json({ success: true, message: 'Preferences updated successfully' });
+  } catch (error) {
+    console.error('Error updating notification preferences:', error);
+    return res.status(500).json({ error: 'Failed to update notification preferences' });
+  }
+});
+
+// Acknowledge a callout notification
+app.post('/api/personnel/notifications/acknowledge', authenticateToken, async (req, res) => {
+  const { notificationLogId, calloutId, response } = req.body;
+
+  if (!notificationLogId && !calloutId) {
+    return res.status(400).json({ error: 'Notification log ID or callout ID is required' });
+  }
+
+  try {
+    // If calloutId is provided without notificationLogId, find the notification log
+    let finalNotificationLogId = notificationLogId;
+    if (calloutId && !notificationLogId) {
+      const callout = await get('SELECT title, created_at FROM callouts WHERE id = ?', [calloutId]);
+      if (!callout) {
+        return res.status(404).json({ error: 'Callout not found' });
+      }
+
+      const logs = await all(
+        `SELECT id FROM notification_logs 
+         WHERE type = 'personnel-callout' 
+         AND title LIKE ? 
+         AND created_at >= datetime(?, '-1 hour')
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        [`%${callout.title}%`, callout.created_at]
+      );
+
+      if (logs && logs.length > 0) {
+        finalNotificationLogId = logs[0].id;
+      }
+    }
+
+    if (!finalNotificationLogId) {
+      return res.status(400).json({ error: 'Notification log ID is required' });
+    }
+
+    const isPostgres = dbType === 'postgres';
+    
+    // Check if already acknowledged
+    const existing = await get(
+      'SELECT id FROM notification_acknowledgements WHERE notification_log_id = ? AND user_id = ?',
+      [finalNotificationLogId, req.user.id]
+    );
+
+    if (existing) {
+      return res.status(400).json({ error: 'Notification already acknowledged' });
+    }
+
+    // Create acknowledgement
+    await run(
+      `INSERT INTO notification_acknowledgements (notification_log_id, user_id, callout_id, response)
+       VALUES (?, ?, ?, ?)`,
+      [finalNotificationLogId, req.user.id, calloutId || null, response || null]
+    );
+
+    // Also update callout acknowledged_by if calloutId is provided
+    if (calloutId) {
+      const callout = await get('SELECT acknowledged_by FROM callouts WHERE id = ?', [calloutId]);
+      if (callout) {
+        let acknowledged = [];
+        if (callout.acknowledged_by) {
+          try {
+            acknowledged = JSON.parse(callout.acknowledged_by);
+          } catch (e) {
+            acknowledged = [];
+          }
+        }
+        if (!acknowledged.includes(req.user.id)) {
+          acknowledged.push(req.user.id);
+          await run(
+            'UPDATE callouts SET acknowledged_by = ? WHERE id = ?',
+            [JSON.stringify(acknowledged), calloutId]
+          );
+        }
+      }
+    }
+
+    res.json({ success: true, message: 'Notification acknowledged successfully' });
+  } catch (error) {
+    console.error('Error acknowledging notification:', error);
+    return res.status(500).json({ error: 'Failed to acknowledge notification' });
+  }
+});
+
+// Get acknowledgements for a notification
+app.get('/api/personnel/notifications/logs/:id/acknowledgements', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin' && req.user.role !== 'officer') {
+    return res.status(403).json({ error: 'Admin or officer access required' });
+  }
+
+  const { id } = req.params;
+
+  try {
+    const acknowledgements = await all(
+      `SELECT na.*, u.name as user_name, u.username, d.name as department_name
+       FROM notification_acknowledgements na
+       INNER JOIN users u ON na.user_id = u.id
+       LEFT JOIN departments d ON u.department_id = d.id
+       WHERE na.notification_log_id = ?
+       ORDER BY na.acknowledged_at DESC`,
+      [id]
+    );
+
+    res.json(acknowledgements);
+  } catch (error) {
+    console.error('Error fetching acknowledgements:', error);
+    return res.status(500).json({ error: 'Failed to fetch acknowledgements' });
+  }
+});
+
+// Get notification types and categories (constants for frontend)
+app.get('/api/personnel/notifications/types', authenticateToken, async (req, res) => {
+  res.json({
+    types: NOTIFICATION_TYPES,
+    categories: NOTIFICATION_CATEGORIES,
+    targetTypes: TARGET_TYPES
+  });
+});
+
+// Get scheduled notifications
+app.get('/api/personnel/notifications/scheduled', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin' && req.user.role !== 'officer') {
+    return res.status(403).json({ error: 'Admin or officer access required' });
+  }
+
+  if (!notificationScheduler) {
+    return res.status(503).json({ error: 'Notification scheduler not available' });
+  }
+
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const scheduled = await notificationScheduler.getScheduledNotifications(limit);
+    res.json(scheduled);
+  } catch (error) {
+    console.error('Error fetching scheduled notifications:', error);
+    return res.status(500).json({ error: 'Failed to fetch scheduled notifications' });
+  }
+});
+
+// Cancel scheduled notification
+app.post('/api/personnel/notifications/scheduled/:id/cancel', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin' && req.user.role !== 'officer') {
+    return res.status(403).json({ error: 'Admin or officer access required' });
+  }
+
+  if (!notificationScheduler) {
+    return res.status(503).json({ error: 'Notification scheduler not available' });
+  }
+
+  try {
+    const { id } = req.params;
+    await notificationScheduler.cancelScheduledNotification(parseInt(id));
+    
+    // Log audit event
+    if (auditLogService) {
+      const { AUDIT_ACTIONS } = require('./services/auditLogService');
+      await auditLogService.logAction({
+        action: AUDIT_ACTIONS.NOTIFICATION_CANCELLED,
+        notificationLogId: parseInt(id),
+        userId: req.user.id,
+        userName: req.user.name || req.user.username,
+        actionDetails: {},
+        ipAddress: req.ip || req.connection.remoteAddress,
+        userAgent: req.get('user-agent')
+      });
+    }
+    
+    res.json({ success: true, message: 'Scheduled notification cancelled' });
+  } catch (error) {
+    console.error('Error cancelling scheduled notification:', error);
+    return res.status(500).json({ error: error.message || 'Failed to cancel scheduled notification' });
+  }
+});
+
+// Get audit logs
+app.get('/api/personnel/notifications/audit', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin' && req.user.role !== 'officer') {
+    return res.status(403).json({ error: 'Admin or officer access required' });
+  }
+
+  if (!auditLogService) {
+    return res.status(503).json({ error: 'Audit log service not available' });
+  }
+
+  try {
+    const {
+      limit = 100,
+      offset = 0,
+      action,
+      userId,
+      notificationLogId,
+      startDate,
+      endDate
+    } = req.query;
+
+    const filters = {
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      action: action || undefined,
+      userId: userId ? parseInt(userId) : undefined,
+      notificationLogId: notificationLogId ? parseInt(notificationLogId) : undefined,
+      startDate: startDate ? new Date(startDate) : undefined,
+      endDate: endDate ? new Date(endDate) : undefined
+    };
+
+    const logs = await auditLogService.getAuditLogs(filters);
+    res.json(logs);
+  } catch (error) {
+    console.error('Error fetching audit logs:', error);
+    return res.status(500).json({ error: 'Failed to fetch audit logs' });
+  }
+});
+
+// Get audit statistics
+app.get('/api/personnel/notifications/audit/statistics', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin' && req.user.role !== 'officer') {
+    return res.status(403).json({ error: 'Admin or officer access required' });
+  }
+
+  if (!auditLogService) {
+    return res.status(503).json({ error: 'Audit log service not available' });
+  }
+
+  try {
+    const { startDate, endDate } = req.query;
+    const statistics = await auditLogService.getAuditStatistics(
+      startDate ? new Date(startDate) : null,
+      endDate ? new Date(endDate) : null
+    );
+    res.json(statistics);
+  } catch (error) {
+    console.error('Error fetching audit statistics:', error);
+    return res.status(500).json({ error: 'Failed to fetch audit statistics' });
+  }
+});
+
+// Get notification metrics
+app.get('/api/personnel/notifications/metrics', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin' && req.user.role !== 'officer') {
+    return res.status(403).json({ error: 'Admin or officer access required' });
+  }
+
+  if (!notificationService) {
+    return res.status(503).json({ error: 'Notification service not available' });
+  }
+
+  try {
+    const { startDate, endDate } = req.query;
+    const start = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // Default: last 30 days
+    const end = endDate ? new Date(endDate) : new Date();
+
+    // Get overall statistics
+    const totalNotifications = await get(
+      `SELECT COUNT(*) as count FROM notification_logs WHERE created_at >= ? AND created_at <= ?`,
+      [start.toISOString(), end.toISOString()]
+    );
+
+    const sentNotifications = await get(
+      `SELECT COUNT(*) as count FROM notification_logs 
+       WHERE created_at >= ? AND created_at <= ? AND delivery_status = 'sent'`,
+      [start.toISOString(), end.toISOString()]
+    );
+
+    const failedNotifications = await get(
+      `SELECT COUNT(*) as count FROM notification_logs 
+       WHERE created_at >= ? AND created_at <= ? AND delivery_status = 'failed'`,
+      [start.toISOString(), end.toISOString()]
+    );
+
+    const scheduledNotifications = await get(
+      `SELECT COUNT(*) as count FROM notification_logs 
+       WHERE created_at >= ? AND created_at <= ? AND scheduled_for IS NOT NULL AND delivery_status = 'pending'`,
+      [start.toISOString(), end.toISOString()]
+    );
+
+    const testNotifications = await get(
+      `SELECT COUNT(*) as count FROM notification_logs 
+       WHERE created_at >= ? AND created_at <= ? AND is_test_mode = ?`,
+      [start.toISOString(), end.toISOString(), getDbType() === 'postgres' ? true : 1]
+    );
+
+    // Get delivery statistics
+    const deliveryStats = await all(
+      `SELECT 
+        SUM(total_recipients) as total_recipients,
+        SUM(successful_deliveries) as total_successful,
+        SUM(failed_deliveries) as total_failed
+       FROM notification_logs 
+       WHERE created_at >= ? AND created_at <= ? AND delivery_status = 'sent'`,
+      [start.toISOString(), end.toISOString()]
+    );
+
+    // Get notifications by type
+    const byType = await all(
+      `SELECT type, COUNT(*) as count 
+       FROM notification_logs 
+       WHERE created_at >= ? AND created_at <= ?
+       GROUP BY type 
+       ORDER BY count DESC`,
+      [start.toISOString(), end.toISOString()]
+    );
+
+    // Get notifications by category
+    const byCategory = await all(
+      `SELECT category, COUNT(*) as count 
+       FROM notification_logs 
+       WHERE created_at >= ? AND created_at <= ?
+       GROUP BY category 
+       ORDER BY count DESC`,
+      [start.toISOString(), end.toISOString()]
+    );
+
+    // Get daily notification counts
+    const dailyCounts = await all(
+      `SELECT DATE(created_at) as date, COUNT(*) as count 
+       FROM notification_logs 
+       WHERE created_at >= ? AND created_at <= ?
+       GROUP BY DATE(created_at) 
+       ORDER BY date ASC`,
+      [start.toISOString(), end.toISOString()]
+    );
+
+    const metrics = {
+      period: {
+        start: start.toISOString(),
+        end: end.toISOString()
+      },
+      summary: {
+        total: totalNotifications?.count || 0,
+        sent: sentNotifications?.count || 0,
+        failed: failedNotifications?.count || 0,
+        scheduled: scheduledNotifications?.count || 0,
+        test: testNotifications?.count || 0
+      },
+      delivery: {
+        totalRecipients: deliveryStats[0]?.total_recipients || 0,
+        totalSuccessful: deliveryStats[0]?.total_successful || 0,
+        totalFailed: deliveryStats[0]?.total_failed || 0,
+        successRate: deliveryStats[0]?.total_recipients > 0 
+          ? ((deliveryStats[0]?.total_successful || 0) / deliveryStats[0]?.total_recipients * 100).toFixed(2)
+          : '0.00'
+      },
+      byType: byType || [],
+      byCategory: byCategory || [],
+      dailyCounts: dailyCounts || []
+    };
+
+    res.json(metrics);
+  } catch (error) {
+    console.error('Error fetching notification metrics:', error);
+    return res.status(500).json({ error: 'Failed to fetch notification metrics' });
   }
 });
 

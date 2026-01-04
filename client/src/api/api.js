@@ -292,5 +292,90 @@ export const deleteSearchRescue = (id) => {
   return api.delete(`/personnel/search-rescue/${id}`);
 };
 
+// Comprehensive Notification System API
+export const sendNotification = (notificationData) => {
+  return api.post('/personnel/notifications/send', notificationData);
+};
+
+export const getNotificationLogs = (filters = {}) => {
+  const params = new URLSearchParams();
+  if (filters.limit) params.append('limit', filters.limit);
+  if (filters.offset) params.append('offset', filters.offset);
+  if (filters.type) params.append('type', filters.type);
+  if (filters.targetType) params.append('targetType', filters.targetType);
+  if (filters.status) params.append('status', filters.status);
+  if (filters.senderId) params.append('senderId', filters.senderId);
+  return api.get(`/personnel/notifications/logs?${params.toString()}`);
+};
+
+export const getNotificationLog = (id) => {
+  return api.get(`/personnel/notifications/logs/${id}`);
+};
+
+export const getNotificationStatistics = (id) => {
+  return api.get(`/personnel/notifications/logs/${id}/statistics`);
+};
+
+export const getNotificationAcknowledgements = (id) => {
+  return api.get(`/personnel/notifications/logs/${id}/acknowledgements`);
+};
+
+export const getNotificationTypes = () => {
+  return api.get('/personnel/notifications/types');
+};
+
+export const getNotificationPreferences = () => {
+  return api.get('/personnel/notifications/preferences');
+};
+
+export const updateNotificationPreferences = (preferences) => {
+  return api.put('/personnel/notifications/preferences', preferences);
+};
+
+export const acknowledgeNotification = (notificationLogId, calloutId, response) => {
+  return api.post('/personnel/notifications/acknowledge', {
+    notificationLogId,
+    calloutId,
+    response
+  });
+};
+
+// Scheduled notifications
+export const getScheduledNotifications = (limit = 100) => {
+  return api.get(`/personnel/notifications/scheduled?limit=${limit}`);
+};
+
+export const cancelScheduledNotification = (id) => {
+  return api.post(`/personnel/notifications/scheduled/${id}/cancel`);
+};
+
+// Audit logs
+export const getAuditLogs = (filters = {}) => {
+  const params = new URLSearchParams();
+  if (filters.limit) params.append('limit', filters.limit);
+  if (filters.offset) params.append('offset', filters.offset);
+  if (filters.action) params.append('action', filters.action);
+  if (filters.userId) params.append('userId', filters.userId);
+  if (filters.notificationLogId) params.append('notificationLogId', filters.notificationLogId);
+  if (filters.startDate) params.append('startDate', filters.startDate);
+  if (filters.endDate) params.append('endDate', filters.endDate);
+  return api.get(`/personnel/notifications/audit?${params.toString()}`);
+};
+
+export const getAuditStatistics = (startDate = null, endDate = null) => {
+  const params = new URLSearchParams();
+  if (startDate) params.append('startDate', startDate);
+  if (endDate) params.append('endDate', endDate);
+  return api.get(`/personnel/notifications/audit/statistics?${params.toString()}`);
+};
+
+// Metrics
+export const getNotificationMetrics = (startDate = null, endDate = null) => {
+  const params = new URLSearchParams();
+  if (startDate) params.append('startDate', startDate);
+  if (endDate) params.append('endDate', endDate);
+  return api.get(`/personnel/notifications/metrics?${params.toString()}`);
+};
+
 export default api;
 

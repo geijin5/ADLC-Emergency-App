@@ -632,7 +632,8 @@ const MapView = ({ refreshTrigger, onSectionClick }) => {
                 
                 const markerColor = getMarkerColor();
                 const iconEmoji = op.status === 'training' ? '🎓' : '🔍';
-                const searchAreaType = op.search_area_type || (op.search_area_coordinates ? 'polygon' : (op.search_area_radius ? 'radius' : 'pin'));
+                // SAR operations now always use radius boundaries
+                const searchAreaType = op.search_area_type === 'radius' || op.search_area_radius ? 'radius' : 'pin';
                 
                 // Create a custom icon for SAR operations
                 const sarIcon = L.divIcon({
@@ -778,55 +779,7 @@ const MapView = ({ refreshTrigger, onSectionClick }) => {
                         </Popup>
                       </Circle>
                     )}
-                    {/* Search Area - Polygon */}
-                    {searchAreaType === 'polygon' && op.search_area_coordinates && Array.isArray(op.search_area_coordinates) && op.search_area_coordinates.length > 0 && (
-                      <Polygon
-                        positions={op.search_area_coordinates}
-                        pathOptions={{
-                          color: markerColor,
-                          fillColor: markerColor,
-                          fillOpacity: op.status === 'training' ? 0.15 : 0.2,
-                          weight: 3,
-                          dashArray: op.status === 'training' ? '5, 5' : '10, 5',
-                          interactive: true,
-                          bubblingMouseEvents: true
-                        }}
-                        eventHandlers={{
-                          mouseover: (e) => {
-                            e.target.setStyle({ fillOpacity: op.status === 'training' ? 0.25 : 0.3, weight: 4 });
-                          },
-                          mouseout: (e) => {
-                            e.target.setStyle({ fillOpacity: op.status === 'training' ? 0.15 : 0.2, weight: 3 });
-                          }
-                        }}
-                        pane="overlayPane"
-                      >
-                        <Popup maxWidth={300} autoPan={true} autoPanPadding={[50, 50]} closeButton={true}>
-                          <div>
-                            <h3 style={{ margin: '0 0 10px 0', color: markerColor }}>
-                              {op.status === 'training' ? '🎓' : '🔍'} Search Area: {op.title}
-                            </h3>
-                            {op.status === 'training' && (
-                              <p style={{ 
-                                margin: '0 0 10px 0', 
-                                padding: '5px 10px',
-                                backgroundColor: '#3b82f6',
-                                color: 'white',
-                                borderRadius: '4px',
-                                fontSize: '12px',
-                                fontWeight: 'bold',
-                                display: 'inline-block'
-                              }}>
-                                🎓 TRAINING OPERATION
-                              </p>
-                            )}
-                            <p style={{ margin: '5px 0', color: '#d1d5db' }}>
-                              {op.case_number || `SAR-${op.id}`}
-                            </p>
-                          </div>
-                        </Popup>
-                      </Polygon>
-                    )}
+                    {/* Polygon search areas are no longer supported - only radius boundaries are used for SAR operations */}
                   </React.Fragment>
                 );
               })}
