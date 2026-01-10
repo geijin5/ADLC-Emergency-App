@@ -386,15 +386,15 @@ const isPostgres = dbType === 'postgres';
     ? `CREATE TABLE IF NOT EXISTS push_subscriptions (
       id SERIAL PRIMARY KEY,
       endpoint TEXT UNIQUE NOT NULL,
-      p256dh TEXT NOT NULL,
-      auth TEXT NOT NULL,
+      p256dh TEXT,
+      auth TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
     : `CREATE TABLE IF NOT EXISTS push_subscriptions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       endpoint TEXT UNIQUE NOT NULL,
-      p256dh TEXT NOT NULL,
-      auth TEXT NOT NULL,
+      p256dh TEXT,
+      auth TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`;
   await run(pushSubsTableSQL);
@@ -420,6 +420,22 @@ const isPostgres = dbType === 'postgres';
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )`;
   await run(personnelPushSubsTableSQL);
+
+  // Update existing push_subscriptions table to allow NULL values for FCM-only subscriptions
+  try {
+    if (isPostgres) {
+      await run(`ALTER TABLE push_subscriptions ALTER COLUMN p256dh DROP NOT NULL`);
+      await run(`ALTER TABLE push_subscriptions ALTER COLUMN auth DROP NOT NULL`);
+    } else {
+      // SQLite doesn't support ALTER COLUMN to drop NOT NULL, but CREATE TABLE IF NOT EXISTS won't modify existing tables
+      // We'll handle this by allowing NULL in new inserts
+    }
+  } catch (err) {
+    // Ignore errors if columns already allow NULL or table doesn't exist
+    if (!err.message.includes('does not exist') && !err.message.includes('already exists') && !err.message.includes('syntax error')) {
+      console.warn('Warning: Could not update push_subscriptions columns to allow NULL:', err.message);
+    }
+  }
 
   // Enhanced push subscriptions table with platform support
   try {
@@ -2967,7 +2983,7 @@ app.post('/api/public/push/subscribe', async (req, res) => {
       if (hasFCM) {
         // Also store FCM token (might be separate record or update existing)
         // For FCM-only subscriptions (no Web Push), use FCM token as endpoint identifier
-        const fcmEndpoint = hasWebPush ? subscription.endpoint : `fcm:${fcmToken.substring(0, 50)}`;
+        const fcmEndpoint = hasWebPush && subscription ? subscription.endpoint : `fcm:${fcmToken.substring(0, 50)}`;
         
         await run(
           `INSERT INTO push_subscriptions (endpoint, p256dh, auth, platform, device_token)
@@ -2993,7 +3009,7 @@ app.post('/api/public/push/subscribe', async (req, res) => {
       }
       
       if (hasFCM) {
-        const fcmEndpoint = hasWebPush ? subscription.endpoint : `fcm:${fcmToken.substring(0, 50)}`;
+        const fcmEndpoint = hasWebPush && subscription ? subscription.endpoint : `fcm:${fcmToken.substring(0, 50)}`;
         await run(
           `INSERT OR REPLACE INTO push_subscriptions (endpoint, p256dh, auth, platform, device_token)
            VALUES (?, ?, ?, ?, ?)`,
