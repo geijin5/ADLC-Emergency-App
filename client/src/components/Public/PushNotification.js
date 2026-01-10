@@ -338,9 +338,10 @@ const PushNotification = () => {
       }
 
       const vapidPublicKey = response?.data?.publicKey;
-      console.log('VAPID public key received:', vapidPublicKey.substring(0, 20) + '...');
+      console.log('VAPID public key received:', vapidPublicKey?.substring(0, 20) + '...');
 
       let subscriptionData = null;
+      let subscription = null; // Declare subscription in broader scope for error handling
       
       // Try to get Web Push subscription if VAPID key is available
       if (vapidPublicKey) {
@@ -423,7 +424,6 @@ const PushNotification = () => {
               // Subscribe to push notifications
               console.log('Subscribing to push notifications...');
               
-              let subscription;
               try {
                 // Try to get existing subscription first
                 const existingSubscription = await registration.pushManager.getSubscription();
