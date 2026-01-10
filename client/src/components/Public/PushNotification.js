@@ -500,12 +500,14 @@ const PushNotification = () => {
           response: serverError.response?.data,
           status: serverError.response?.status
         });
-        // Unsubscribe locally if server save failed
-        try {
-          await subscription.unsubscribe();
-          console.log('Unsubscribed locally after server error');
-        } catch (unsubError) {
-          console.error('Failed to unsubscribe after server error:', unsubError);
+        // Unsubscribe locally if server save failed (only if we have a Web Push subscription)
+        if (subscription) {
+          try {
+            await subscription.unsubscribe();
+            console.log('Unsubscribed locally after server error');
+          } catch (unsubError) {
+            console.error('Failed to unsubscribe after server error:', unsubError);
+          }
         }
         const errorMessage = serverError.response?.data?.error || serverError.message || 'Unknown error';
         alert(`❌ Failed to save subscription: ${errorMessage}\n\nPlease try again.`);
