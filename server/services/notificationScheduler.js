@@ -48,25 +48,37 @@ class NotificationScheduler {
       
       // Find all scheduled notifications that are due
       // For PostgreSQL, use NOW() directly in query; for SQLite, use parameter
-      const scheduledNotifications = dbType === 'postgres'
-        ? await all(
-            `SELECT * FROM notification_logs 
-             WHERE scheduled_for IS NOT NULL 
-             AND scheduled_for <= NOW()
-             AND delivery_status = $1
-             ORDER BY scheduled_for ASC`,
-            [DELIVERY_STATUS.PENDING]
-          )
-        : await all(
-            `SELECT * FROM notification_logs 
-             WHERE scheduled_for IS NOT NULL 
-             AND scheduled_for <= ? 
-             AND delivery_status = ?
-             ORDER BY scheduled_for ASC`,
-            [now.toISOString(), DELIVERY_STATUS.PENDING]
-          );
+      let scheduledNotifications;
+      try {
+        scheduledNotifications = dbType === 'postgres'
+          ? await all(
+              `SELECT * FROM notification_logs 
+               WHERE scheduled_for IS NOT NULL 
+               AND scheduled_for <= NOW()
+               AND delivery_status = $1
+               ORDER BY scheduled_for ASC`,
+              [DELIVERY_STATUS.PENDING]
+            )
+          : await all(
+              `SELECT * FROM notification_logs 
+               WHERE scheduled_for IS NOT NULL 
+               AND scheduled_for <= ? 
+               AND delivery_status = ?
+               ORDER BY scheduled_for ASC`,
+              [now.toISOString(), DELIVERY_STATUS.PENDING]
+            );
+      } catch (dbError) {
+        // Handle database connection errors gracefully (especially during startup)
+        if (dbError.message && (dbError.message.includes('Connection terminated') || 
+                              dbError.message.includes('connection timeout') ||
+                              dbError.message.includes('ECONNREFUSED'))) {
+          // Silently skip during startup - will retry on next interval
+          return;
+        }
+        throw dbError;
+      }
 
-      if (scheduledNotifications.length === 0) {
+      if (!scheduledNotifications || scheduledNotifications.length === 0) {
         return; // No scheduled notifications to process
       }
 
