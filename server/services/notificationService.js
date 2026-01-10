@@ -446,7 +446,8 @@ class NotificationService {
           deliveryStatus: DELIVERY_STATUS.DELIVERED,
           deliveredAt: new Date()
         });
-      } else if (recipient.platform === PLATFORMS.ANDROID) {
+      } else if (recipient.platform === PLATFORMS.ANDROID || (recipient.platform === PLATFORMS.WEB && recipient.deviceToken)) {
+        // Firebase Cloud Messaging (FCM) for Android and Web with FCM token
         // Firebase Cloud Messaging (FCM)
         if (!this.admin) {
           throw new Error('Firebase Admin not initialized. Set FIREBASE_SERVICE_ACCOUNT_KEY environment variable.');

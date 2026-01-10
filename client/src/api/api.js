@@ -89,8 +89,8 @@ export const getVapidPublicKey = () => {
   return api.get('/public/push/vapid-key');
 };
 
-export const subscribeToPush = (subscription) => {
-  return api.post('/public/push/subscribe', { subscription });
+export const subscribeToPush = (subscription, fcmToken = null, platform = 'web') => {
+  return api.post('/public/push/subscribe', { subscription, fcmToken, platform });
 };
 
 export const unsubscribeFromPush = (endpoint) => {

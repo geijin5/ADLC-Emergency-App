@@ -19,9 +19,8 @@
       // Import the functions you need from the SDKs you need
       import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
       import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-analytics.js";
-      // TODO: Add SDKs for Firebase products that you want to use
-      // https://firebase.google.com/docs/web/setup#available-libraries
-
+      import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-messaging.js";
+      
       // Your web app's Firebase configuration
       // For Firebase JS SDK v7.20.0 and later, measurementId is optional
       const firebaseConfig = {
@@ -38,9 +37,39 @@
       const app = initializeApp(firebaseConfig);
       const analytics = getAnalytics(app);
       
-      // Make Firebase app available globally for use in React components
+      // Initialize Firebase Cloud Messaging and get a reference to the service
+      let messaging = null;
+      try {
+        messaging = getMessaging(app);
+        
+        // Handle foreground messages
+        onMessage(messaging, (payload) => {
+          console.log('Message received in foreground:', payload);
+          
+          // Show notification when app is in foreground
+          const notificationTitle = payload.notification?.title || payload.data?.title || 'ADLC Emergency Alert';
+          const notificationOptions = {
+            body: payload.notification?.body || payload.data?.message || 'You have a new emergency alert',
+            icon: payload.notification?.icon || '/logo.png',
+            badge: '/logo.png',
+            tag: payload.data?.tag || 'emergency-alert',
+            data: payload.data || {},
+            requireInteraction: payload.data?.severity === 'danger',
+            vibrate: payload.data?.severity === 'danger' ? [300, 100, 300, 100, 300] : [200, 100, 200]
+          };
+          
+          if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification(notificationTitle, notificationOptions);
+          }
+        });
+      } catch (error) {
+        console.warn('Firebase Messaging initialization failed:', error);
+      }
+      
+      // Make Firebase app and messaging available globally for use in React components
       window.firebaseApp = app;
       window.firebaseAnalytics = analytics;
+      window.firebaseMessaging = messaging;
     </script>
   </head>
   <body>

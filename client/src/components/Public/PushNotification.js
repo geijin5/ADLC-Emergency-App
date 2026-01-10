@@ -118,91 +118,137 @@ const PushNotification = () => {
     }
   };
 
+  // Get FCM token if Firebase is available
+  const getFCMToken = async () => {
+    try {
+      // Wait for Firebase to be initialized (loaded from CDN in index.html)
+      // Check if messaging and getToken are available
+      if (window.firebaseMessaging && window.firebaseGetToken) {
+        const messaging = window.firebaseMessaging;
+        const getToken = window.firebaseGetToken;
+        
+        const serviceWorkerRegistration = await navigator.serviceWorker.getRegistration();
+        const currentToken = await getToken(messaging, {
+          serviceWorkerRegistration: serviceWorkerRegistration || undefined
+        });
+        
+        if (currentToken) {
+          console.log('✅ FCM token obtained:', currentToken.substring(0, 20) + '...');
+          return currentToken;
+        } else {
+          console.log('No FCM token available - user needs to grant notification permission');
+          return null;
+        }
+      } else {
+        console.log('Firebase Messaging not initialized yet');
+        return null;
+      }
+    } catch (error) {
+      console.warn('Failed to get FCM token:', error);
+      // This is OK - FCM might not be available or permission not granted
+      return null;
+    }
+  };
+
   // Auto-subscribe function (called when app is installed)
   const autoSubscribe = async () => {
     try {
-      // Get VAPID public key
+      // Get FCM token if available
+      let fcmToken = null;
+      try {
+        fcmToken = await getFCMToken();
+      } catch (fcmError) {
+        console.log('FCM token not available (will use Web Push only):', fcmError);
+      }
+      
+      // Get VAPID public key for Web Push
       const response = await getVapidPublicKey();
-      if (!response.data || !response.data.publicKey) {
+      if (!response.data || !response.data.publicKey && !fcmToken) {
         return;
       }
 
-      const vapidPublicKey = response.data.publicKey;
+      const vapidPublicKey = response.data?.publicKey;
 
-      // Register service worker
-      let registration;
-      const existingRegistrations = await navigator.serviceWorker.getRegistrations();
-      if (existingRegistrations.length > 0) {
-        registration = existingRegistrations[0];
-      } else {
-        // Try different paths for service worker (for Capacitor compatibility)
-        const swPaths = ['/service-worker.js', './service-worker.js', 'service-worker.js'];
-        let registered = false;
-        
-        for (const swPath of swPaths) {
-          try {
-            registration = await navigator.serviceWorker.register(swPath, {
-              scope: '/'
-            });
-            console.log('✅ Service Worker registered at:', swPath);
-            registered = true;
-            break;
-          } catch (pathError) {
-            console.warn(`Failed to register at ${swPath}:`, pathError.message);
-            // Continue to next path
+      let subscriptionData = null;
+      
+      // Try to get Web Push subscription if VAPID key is available
+      if (vapidPublicKey) {
+        // Register service worker
+        let registration;
+        const existingRegistrations = await navigator.serviceWorker.getRegistrations();
+        if (existingRegistrations.length > 0) {
+          registration = existingRegistrations[0];
+        } else {
+          // Try different paths for service worker (for Capacitor compatibility)
+          const swPaths = ['/service-worker.js', './service-worker.js', 'service-worker.js'];
+          let registered = false;
+          
+          for (const swPath of swPaths) {
+            try {
+              registration = await navigator.serviceWorker.register(swPath, {
+                scope: '/'
+              });
+              console.log('✅ Service Worker registered at:', swPath);
+              registered = true;
+              break;
+            } catch (pathError) {
+              console.warn(`Failed to register at ${swPath}:`, pathError.message);
+              // Continue to next path
+            }
+          }
+          
+          if (!registered) {
+            throw new Error('Failed to register service worker at any path');
           }
         }
         
-        if (!registered) {
-          throw new Error('Failed to register service worker at any path');
+        await Promise.race([
+          registration.ready,
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Service worker timeout')), 10000)
+          )
+        ]);
+
+        // Convert VAPID key
+        const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
+
+        // Subscribe to push notifications
+        let subscription;
+        const existingSubscription = await registration.pushManager.getSubscription();
+        if (existingSubscription) {
+          subscription = existingSubscription;
+        } else {
+          subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: applicationServerKey
+          });
         }
+
+        // Prepare Web Push subscription data
+        const p256dhKey = subscription.getKey('p256dh');
+        const authKey = subscription.getKey('auth');
+        
+        const p256dhBase64 = btoa(String.fromCharCode(...new Uint8Array(p256dhKey)))
+          .replace(/\+/g, '-')
+          .replace(/\//g, '_')
+          .replace(/=/g, '');
+        
+        const authBase64 = btoa(String.fromCharCode(...new Uint8Array(authKey)))
+          .replace(/\+/g, '-')
+          .replace(/\//g, '_')
+          .replace(/=/g, '');
+        
+        subscriptionData = {
+          endpoint: subscription.endpoint,
+          keys: {
+            p256dh: p256dhBase64,
+            auth: authBase64
+          }
+        };
       }
       
-      await Promise.race([
-        registration.ready,
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Service worker timeout')), 10000)
-        )
-      ]);
-
-      // Convert VAPID key
-      const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
-
-      // Subscribe to push notifications
-      let subscription;
-      const existingSubscription = await registration.pushManager.getSubscription();
-      if (existingSubscription) {
-        subscription = existingSubscription;
-      } else {
-        subscription = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: applicationServerKey
-        });
-      }
-
-      // Send subscription to server
-      const p256dhKey = subscription.getKey('p256dh');
-      const authKey = subscription.getKey('auth');
-      
-      const p256dhBase64 = btoa(String.fromCharCode(...new Uint8Array(p256dhKey)))
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=/g, '');
-      
-      const authBase64 = btoa(String.fromCharCode(...new Uint8Array(authKey)))
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=/g, '');
-      
-      const subscriptionData = {
-        endpoint: subscription.endpoint,
-        keys: {
-          p256dh: p256dhBase64,
-          auth: authBase64
-        }
-      };
-      
-      const serverResponse = await subscribeToPush(subscriptionData);
+      // Send subscription to server (include both Web Push and FCM if available)
+      const serverResponse = await subscribeToPush(subscriptionData, fcmToken, 'web');
       
       if (serverResponse.data && serverResponse.data.success) {
         setIsSubscribed(true);
@@ -253,7 +299,18 @@ const PushNotification = () => {
     try {
       setIsLoading(true);
 
-      // Get VAPID public key first
+      // Get FCM token if Firebase is available
+      let fcmToken = null;
+      try {
+        fcmToken = await getFCMToken();
+        if (fcmToken) {
+          console.log('✅ FCM token obtained for subscription');
+        }
+      } catch (fcmError) {
+        console.log('FCM token not available (will use Web Push only):', fcmError);
+      }
+
+      // Get VAPID public key for Web Push
       console.log('Getting VAPID public key...');
       let response;
       try {
@@ -261,182 +318,172 @@ const PushNotification = () => {
         console.log('VAPID key response:', response);
       } catch (vapidError) {
         console.error('Failed to get VAPID key:', vapidError);
-        if (vapidError.response?.status === 503) {
-          alert('Push notifications are not configured on the server. Please contact the administrator.');
-        } else {
-          alert('Failed to connect to server. Please check your connection and try again.');
+        // If we have FCM token, we can still proceed
+        if (!fcmToken) {
+          if (vapidError.response?.status === 503) {
+            alert('Push notifications are not configured on the server. Please contact the administrator.');
+          } else {
+            alert('Failed to connect to server. Please check your connection and try again.');
+          }
+          setIsLoading(false);
+          return;
         }
-        setIsLoading(false);
-        return;
       }
 
-      if (!response.data || !response.data.publicKey) {
+      // Need either VAPID key or FCM token
+      if ((!response?.data || !response.data.publicKey) && !fcmToken) {
         alert('Push notifications are not configured on the server.');
         setIsLoading(false);
         return;
       }
 
-      const vapidPublicKey = response.data.publicKey;
+      const vapidPublicKey = response?.data?.publicKey;
       console.log('VAPID public key received:', vapidPublicKey.substring(0, 20) + '...');
 
-      // Register service worker
-      console.log('Registering service worker...');
-      let registration;
-      try {
-        // Check if service worker is already registered
-        const existingRegistrations = await navigator.serviceWorker.getRegistrations();
-        if (existingRegistrations.length > 0) {
-          console.log('Found existing service worker registration');
-          registration = existingRegistrations[0];
-        } else {
-          console.log('Registering new service worker...');
-          // Try different paths for service worker (for Capacitor compatibility)
-          const swPaths = ['/service-worker.js', './service-worker.js', 'service-worker.js'];
-          let lastError;
-          
-          for (const swPath of swPaths) {
-            try {
-              console.log(`Trying to register service worker at: ${swPath}`);
-              registration = await navigator.serviceWorker.register(swPath, {
-                scope: '/'
-              });
-              console.log('✅ Service Worker registered at:', swPath, registration);
-              break; // Success, exit loop
-            } catch (pathError) {
-              console.warn(`Failed to register at ${swPath}:`, pathError.message);
-              lastError = pathError;
-              // Continue to next path
+      let subscriptionData = null;
+      
+      // Try to get Web Push subscription if VAPID key is available
+      if (vapidPublicKey) {
+        // Register service worker
+        console.log('Registering service worker...');
+        let registration;
+        try {
+          // Check if service worker is already registered
+          const existingRegistrations = await navigator.serviceWorker.getRegistrations();
+          if (existingRegistrations.length > 0) {
+            console.log('Found existing service worker registration');
+            registration = existingRegistrations[0];
+          } else {
+            console.log('Registering new service worker...');
+            // Try different paths for service worker (for Capacitor compatibility)
+            const swPaths = ['/service-worker.js', './service-worker.js', 'service-worker.js'];
+            let lastError;
+            
+            for (const swPath of swPaths) {
+              try {
+                console.log(`Trying to register service worker at: ${swPath}`);
+                registration = await navigator.serviceWorker.register(swPath, {
+                  scope: '/'
+                });
+                console.log('✅ Service Worker registered at:', swPath, registration);
+                break; // Success, exit loop
+              } catch (pathError) {
+                console.warn(`Failed to register at ${swPath}:`, pathError.message);
+                lastError = pathError;
+                // Continue to next path
+              }
+            }
+            
+            if (!registration) {
+              throw lastError || new Error('Failed to register service worker at any path');
             }
           }
           
-          if (!registration) {
-            throw lastError || new Error('Failed to register service worker at any path');
+          // Wait for service worker to be ready with timeout
+          console.log('Waiting for service worker to be ready...');
+          await Promise.race([
+            registration.ready,
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Service worker timeout')), 10000)
+            )
+          ]);
+          console.log('✅ Service Worker ready');
+        } catch (swError) {
+          console.error('❌ Service worker registration error:', swError);
+          // If we have FCM token, we can still proceed without Web Push
+          if (!fcmToken) {
+            if (swError.message === 'Service worker timeout') {
+              alert('Service worker took too long to initialize. Please refresh the page and try again.');
+            } else {
+              alert(`Failed to register service worker: ${swError.message}\n\nPlease check browser console for details.`);
+            }
+            setIsLoading(false);
+            return;
+          }
+          console.warn('⚠️ Web Push subscription failed, but FCM token is available, proceeding with FCM only');
+        }
+
+        // Try Web Push subscription if service worker is available
+        if (registration) {
+          try {
+            // Convert VAPID key
+            console.log('Converting VAPID key...');
+            console.log('VAPID key length:', vapidPublicKey.length);
+            
+            let applicationServerKey;
+            try {
+              applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
+              console.log('✅ VAPID key converted successfully, length:', applicationServerKey.length);
+            } catch (keyError) {
+              console.error('❌ VAPID key conversion error:', keyError);
+              console.warn('⚠️ Web Push subscription will be skipped, using FCM only');
+            }
+
+            if (applicationServerKey) {
+              // Subscribe to push notifications
+              console.log('Subscribing to push notifications...');
+              
+              let subscription;
+              try {
+                // Try to get existing subscription first
+                const existingSubscription = await registration.pushManager.getSubscription();
+                if (existingSubscription) {
+                  console.log('Found existing subscription, using it');
+                  subscription = existingSubscription;
+                } else {
+                  console.log('No existing subscription, creating new one...');
+                  subscription = await registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: applicationServerKey
+                  });
+                  console.log('✅ Push subscription created successfully');
+                }
+                
+                // Prepare Web Push subscription data
+                const p256dhKey = subscription.getKey('p256dh');
+                const authKey = subscription.getKey('auth');
+                
+                const p256dhBase64 = btoa(String.fromCharCode(...new Uint8Array(p256dhKey)))
+                  .replace(/\+/g, '-')
+                  .replace(/\//g, '_')
+                  .replace(/=/g, '');
+                
+                const authBase64 = btoa(String.fromCharCode(...new Uint8Array(authKey)))
+                  .replace(/\+/g, '-')
+                  .replace(/\//g, '_')
+                  .replace(/=/g, '');
+                
+                subscriptionData = {
+                  endpoint: subscription.endpoint,
+                  keys: {
+                    p256dh: p256dhBase64,
+                    auth: authBase64
+                  }
+                };
+                
+                console.log('Web Push subscription data prepared');
+              } catch (subError) {
+                console.error('❌ Push subscription error:', subError);
+                console.warn('⚠️ Web Push subscription failed, will use FCM only if available');
+                // Continue with FCM if available
+              }
+            }
+          } catch (err) {
+            console.warn('⚠️ Web Push setup failed:', err);
           }
         }
-        
-        // Wait for service worker to be ready with timeout
-        console.log('Waiting for service worker to be ready...');
-        await Promise.race([
-          registration.ready,
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Service worker timeout')), 10000)
-          )
-        ]);
-        console.log('✅ Service Worker ready');
-      } catch (swError) {
-        console.error('❌ Service worker registration error:', swError);
-        if (swError.message === 'Service worker timeout') {
-          alert('Service worker took too long to initialize. Please refresh the page and try again.');
-        } else {
-          alert(`Failed to register service worker: ${swError.message}\n\nPlease check browser console for details.`);
-        }
-        setIsLoading(false);
-        return;
       }
 
-      // Convert VAPID key
-      console.log('Converting VAPID key...');
-      console.log('VAPID key length:', vapidPublicKey.length);
-      console.log('VAPID key preview:', vapidPublicKey.substring(0, 50) + '...');
-      
-      let applicationServerKey;
-      try {
-        applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
-        console.log('✅ VAPID key converted successfully, length:', applicationServerKey.length);
-      } catch (keyError) {
-        console.error('❌ VAPID key conversion error:', keyError);
-        alert(`Invalid VAPID key format: ${keyError.message}\n\nPlease contact the administrator.`);
-        setIsLoading(false);
-        return;
-      }
-
-      // Subscribe to push notifications
-      console.log('Subscribing to push notifications...');
-      console.log('Service worker scope:', registration.scope);
-      console.log('Push manager available:', !!registration.pushManager);
-      
-      let subscription;
-      try {
-        // Try to get existing subscription first
-        const existingSubscription = await registration.pushManager.getSubscription();
-        if (existingSubscription) {
-          console.log('Found existing subscription, using it');
-          subscription = existingSubscription;
-        } else {
-          console.log('No existing subscription, creating new one...');
-          subscription = await registration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: applicationServerKey
-          });
-          console.log('✅ Push subscription created successfully');
-        }
-        
-        console.log('Subscription endpoint:', subscription.endpoint);
-        console.log('Subscription keys present:', {
-          p256dh: !!subscription.getKey('p256dh'),
-          auth: !!subscription.getKey('auth')
-        });
-      } catch (subError) {
-        console.error('❌ Push subscription error:', subError);
-        console.error('Error details:', {
-          name: subError.name,
-          message: subError.message,
-          stack: subError.stack
-        });
-        
-        if (subError.name === 'NotAllowedError') {
-          alert('Push notifications were blocked. Please allow notifications in your browser settings and try again.');
-        } else if (subError.name === 'NotSupportedError') {
-          alert('Push notifications are not supported in this browser.');
-        } else if (subError.message && subError.message.includes('push service error')) {
-          alert('Push service error. This may be due to:\n\n' +
-                '1. Invalid VAPID keys\n' +
-                '2. Browser push service unavailable\n' +
-                '3. Network connectivity issues\n\n' +
-                'Please try again later or contact support.');
-        } else {
-          alert(`Failed to subscribe: ${subError.message || subError.name || 'Unknown error'}\n\nPlease check the browser console for more details.`);
-        }
-        setIsLoading(false);
-        return;
-      }
-
-      // Send subscription to server
+      // Send subscription to server (include both Web Push and FCM if available)
       console.log('Sending subscription to server...');
       try {
-        // Convert subscription to JSON-serializable format
-        // The keys need to be base64url encoded (which btoa provides, but we need to handle padding)
-        const p256dhKey = subscription.getKey('p256dh');
-        const authKey = subscription.getKey('auth');
-        
-        // Convert ArrayBuffer to base64 string
-        const p256dhBase64 = btoa(String.fromCharCode(...new Uint8Array(p256dhKey)))
-          .replace(/\+/g, '-')
-          .replace(/\//g, '_')
-          .replace(/=/g, '');
-        
-        const authBase64 = btoa(String.fromCharCode(...new Uint8Array(authKey)))
-          .replace(/\+/g, '-')
-          .replace(/\//g, '_')
-          .replace(/=/g, '');
-        
-        const subscriptionData = {
-          endpoint: subscription.endpoint,
-          keys: {
-            p256dh: p256dhBase64,
-            auth: authBase64
-          }
-        };
-        
         console.log('Subscription data to send:', { 
-          endpoint: subscriptionData.endpoint.substring(0, 50) + '...',
-          hasP256dh: !!subscriptionData.keys.p256dh,
-          hasAuth: !!subscriptionData.keys.auth,
-          p256dhLength: subscriptionData.keys.p256dh?.length,
-          authLength: subscriptionData.keys.auth?.length
+          hasWebPush: !!subscriptionData,
+          hasFcmToken: !!fcmToken,
+          endpoint: subscriptionData?.endpoint?.substring(0, 50) + '...'
         });
         
-        const response = await subscribeToPush(subscriptionData);
+        const response = await subscribeToPush(subscriptionData, fcmToken, 'web');
         console.log('✅ Subscription saved to server:', response.data);
         
         // Verify subscription was saved by checking the response

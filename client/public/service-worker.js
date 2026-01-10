@@ -1,4 +1,43 @@
 // Service Worker for Push Notifications and PWA
+// Import Firebase SDKs in the service worker
+importScripts('https://www.gstatic.com/firebasejs/12.7.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/12.7.0/firebase-messaging-compat.js');
+
+// Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyBW6jr1KLb_zVr_yewFdnU3eybL63eOFv8",
+  authDomain: "adlc-emergency-app.firebaseapp.com",
+  projectId: "adlc-emergency-app",
+  storageBucket: "adlc-emergency-app.firebasestorage.app",
+  messagingSenderId: "134331305578",
+  appId: "1:134331305578:web:30a49d166a3554706b0413",
+  measurementId: "G-GZLQYX0VTW"
+};
+
+// Initialize Firebase in the service worker
+firebase.initializeApp(firebaseConfig);
+
+// Retrieve an instance of Firebase Messaging so that it can handle background messages
+const messaging = firebase.messaging();
+
+// Handle background messages from FCM
+messaging.onBackgroundMessage((payload) => {
+  console.log('[firebase-messaging-sw.js] Received background message ', payload);
+  
+  const notificationTitle = payload.notification?.title || payload.data?.title || 'ADLC Emergency Alert';
+  const notificationOptions = {
+    body: payload.notification?.body || payload.data?.message || 'You have a new emergency alert',
+    icon: payload.notification?.icon || '/logo.png',
+    badge: '/logo.png',
+    tag: payload.data?.tag || 'emergency-alert',
+    data: payload.data || {},
+    requireInteraction: payload.data?.severity === 'danger',
+    vibrate: payload.data?.severity === 'danger' ? [300, 100, 300, 100, 300] : [200, 100, 200]
+  };
+  
+  return self.registration.showNotification(notificationTitle, notificationOptions);
+});
+
 const CACHE_NAME = 'adlc-emergency-v1';
 const urlsToCache = [
   '/',

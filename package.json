@@ -19,11 +19,17 @@
     "heroku-postbuild": "npm run build",
     "render-build": "echo 'Starting build process...' && npm install --production=false && echo 'Root dependencies installed' && cd server && npm install --production=false && echo 'Server dependencies installed' && cd ../client && npm install --production=false && echo 'Client dependencies installed' && echo 'Building React app...' && CI=false npm run build && echo 'React build completed' && ls -la build/ 2>/dev/null || echo 'Build directory listing:' && cd ../.. && echo 'Verifying build...' && node verify-build.js && echo 'Build verification passed!' && echo 'Build artifacts are ready for deployment'"
   },
-  "keywords": ["emergency", "services", "public-safety"],
+  "keywords": [
+    "emergency",
+    "services",
+    "public-safety"
+  ],
   "author": "",
   "license": "ISC",
   "devDependencies": {
     "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "firebase": "^12.7.0"
   }
 }
-
