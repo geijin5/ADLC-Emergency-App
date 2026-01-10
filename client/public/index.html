@@ -15,6 +15,33 @@
     <link rel="apple-touch-icon" href="/logo.png" />
     <link rel="manifest" href="/manifest.json" />
     <title>ADLC Emergency Services</title>
+    <script type="module">
+      // Import the functions you need from the SDKs you need
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
+      import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-analytics.js";
+      // TODO: Add SDKs for Firebase products that you want to use
+      // https://firebase.google.com/docs/web/setup#available-libraries
+
+      // Your web app's Firebase configuration
+      // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+      const firebaseConfig = {
+        apiKey: "AIzaSyBW6jr1KLb_zVr_yewFdnU3eybL63eOFv8",
+        authDomain: "adlc-emergency-app.firebaseapp.com",
+        projectId: "adlc-emergency-app",
+        storageBucket: "adlc-emergency-app.firebasestorage.app",
+        messagingSenderId: "134331305578",
+        appId: "1:134331305578:web:30a49d166a3554706b0413",
+        measurementId: "G-GZLQYX0VTW"
+      };
+
+      // Initialize Firebase
+      const app = initializeApp(firebaseConfig);
+      const analytics = getAnalytics(app);
+      
+      // Make Firebase app available globally for use in React components
+      window.firebaseApp = app;
+      window.firebaseAnalytics = analytics;
+    </script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
